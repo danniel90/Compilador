@@ -1,0 +1,401 @@
+<program>
+program -> global_sentence ";"
+</program>
+
+<global_sentence>
+global_sentence -> sentence global_sentence'
+</global_sentence>
+
+<global_sentence'>
+global_sentence' -> sentence global_sentence' 
+				  | null
+</global_sentence'>				  
+
+<sentence>
+sentence -> constant_declaration ";"
+		  | enum_declaration ";"		
+		  | struct_declaration ";"		  
+		  | variable_declaration variable_declarationP
+		  | void_declaration function_declaration
+</sentence>
+
+<variable_declaration>
+variable_declaration -> variable_type direct_variable_declarator
+</variable_declaration>
+
+<variable_type>
+variable_type -> string | bool | char | float | int
+</variable_type>
+
+<direct_variable_declarator>
+direct_variable_declarator -> variable_name variable_array
+</direct_variable_declarator>
+
+<variable_name>
+variable_name -> ID
+</variable_name>
+
+<variable_array>
+variable_array -> "[" constant_expr "]"
+				| null
+</variable_array>
+
+<variable_declaration'>
+variable_declaration' -> function_declaration
+					   | variable_declarator ";"
+</variable_declaration'>
+
+<variable_declarator>
+variable_declarator -> variable_initializer variable_declarators
+</variable_declarator>
+
+<variable_declarators>
+variable_declarators -> "," variable_declarator variable_initializer variable_declarators
+					  | null
+</variable_declarators'>
+
+<variable_initializer>
+variable_initializer -> initializers
+					  | null
+</variable_initializer>
+		
+<initializers>
+initializers -> "=" initializer
+</initializers>
+
+<initializer>
+initializer -> { initializer_list }
+			 | character_literal
+			 | string_literal
+			 | assign_expr
+</initializer>
+
+<initializer_list>
+initializer_list-> initializer initializer_list'
+</initializer_list>
+
+<initializer_list'>
+initializer_list' -> "," initializer initializer_list'
+				   | null
+</initializer_list'>
+
+<function_declaration>
+function_declaration -> "(" parameter_type_list ")" function_definition
+</function_declaration>
+
+<parameter_type_list>
+parameter_type_list -> parameter_declaration parameter_type_list'
+</parameter_type_list>
+
+<parameter_type_list'>
+parameter_type_list' -> "," parameter_declaration parameter_type_list'
+					  | null
+</parameter_type_list'>
+
+<parameter_declaration>
+parameter_declaration -> declaration_specifier parameter_type
+</parameter_declaration>
+
+<declaration_specifier>
+declaration_specifier -> "const"
+					   | null
+</declaration_specifier>
+
+<parameter_type>
+parameter_type -> variable_type reference parameter_name
+				| null
+</parameter_type>
+
+<reference>
+reference -> "&"
+		   | null
+</reference>
+
+<parameter_name>
+parameter_name -> direct_variable_declarator
+				| null
+</parameter_name>
+
+<function_definition>
+function_definition -> compound_statement
+</function_definition>
+
+<compound_statement>
+compound_statement -> "{" statement_list "}"
+</compound_statement>
+
+<statement_list>
+statement_list -> statement statement_list'
+</statement_list>
+
+<statement_list'>
+statement_list' -> statement statement_list'
+				| null
+</statement_list'>
+
+<statement>
+statement -> declaration_statement ";"
+		   | expression_statement ";"		   
+		   | if_statement
+		   | do_while_statement
+		   | while_statement
+		   | for_statement		   
+		   | break_statement ";"
+		   | continue_statement ";"
+		   | return_statement ";"
+		   | null
+</statement>
+
+<declaration_statement>
+declaration_statement -> variable_declaration variable_declarator
+					   | variable_declaration function_call'
+					   | struct_declarator id
+</declaration_statement>
+
+<function_call>
+function_call -> "(" parameter_list ")" ";"
+</function_call>
+
+<parameter_list>
+parameter_list -> identifier_access parameter_list'
+				| null
+</parameter_list>
+
+<parameter_list'>
+parameter_list' -> identifier_access parameter_list'
+				 | null
+</parameter_list'>
+
+<expression_statement>
+expression_statement -> expr
+</expression_statement>
+
+<identifier_access>
+identifier_access -> "." identifier_accessor
+					 | null
+</identifier_access>
+
+<if_statement>
+if_statement -> "if" "(" condition ")" if_compound_statement elseif else
+</if_statement>
+
+<if_compound_statement>
+if_compound_statement -> compound_statement
+					   | statement
+</if_compound_statement>
+
+<elseif>
+elseif -> "else" else_if'
+		| null
+</elseif>
+
+<else_if'>
+else_if' -> if_statement else_if
+		  | if_compound_statement
+</else_if'>
+
+<condition>
+condition -> condition'
+		   | OR_expr
+</condition>
+
+<condition'>
+condition' ->  "true"
+			  | "false"			  
+</condition'>
+
+<while_statement>
+while_statement -> "while" "(" condition ")" if_compound_statement
+</while_statement>
+
+<do_while_statement>
+do_while_statement -> "do" compound_statement do_while_statement'
+</do_while_statement>
+
+<do_while_statement'>
+do_while_statement' -> "while" "(" condition ")" ";"
+</do_while_statement'>
+
+<for_statement>
+for_statement -> "for" "(" expression_statement ";" OR_expr ";" expression_statement ")" if_compound_statement
+</for_statement>
+
+<break_statment>
+break_statment -> "break" ";"
+</break_statment>
+
+<continue_statement>
+continue_statement -> "continue" ";"
+</continue_statement>
+
+<return_statement>
+return_statement -> "return" return_statement'
+</return_statement>
+
+<return_statement'>
+return_statement' -> expr
+</return_statement'>
+
+<void_declaration>
+void_declaration -> "void" variable_declarators
+</void_declaration>
+
+<constant_declaration>
+constant_declaration -> "const" variable_declaration
+</constant_declaration>
+
+<enum_declaration>
+enum_declaration -> enum_declarator enum_initializer
+</enum_declaration>
+
+<enum_declarator>
+enum_declarator -> "enum" id
+</enum_declarator>
+
+<enum_initializer>
+enum_initializer -> { enum_initializer_list }
+				  | id
+</enum_initializer>
+
+<enum_initializer_list>
+enum_initializer_list-> enum_constant_expression enum_initializer_list'
+</enum_initializer_list>
+
+<enum_initializer_list'>
+enum_initializer_list' -> "," enum_constant_expression enum_initializer_list'
+						| null
+</enum_initializer_list'>
+
+<enum_constant_expression>
+enum_constant_expression -> variable_name(); enum_constant_expression'
+</enum_constant_expression>
+
+<enum_constant_expression'>
+enum_constant_expression' -> "=" OR_expr
+						   | null
+</enum_constant_expression'>
+
+<struct_declaration>
+struct_declaration -> struct_declarator struct_declaration'
+</struct_declaration>
+
+<struct_declarator>
+struct_declarator -> "struct" id
+</struct_declarator>
+
+<struct_declaration'>
+struct_declaration' -> "{" variable_declaration_list "}"
+					 | null
+</struct_declaration'>
+
+<variable_declaration_list>
+variable_declaration_list -> variable_type variable_declarator ";" variable_declaration_list'
+</variable_declaration_list>
+
+<variable_declaration_list'>
+variable_declaration_list' -> variable_type variable_declarator ";" variable_declaration_list'
+							| null
+</variable_declaration_list'>
+
+<expr>
+expr -> sequence_expr
+</expr>
+
+<sequence_expr>
+sequence_expr -> assignment_expr sequence_expr'
+</sequence_expr>
+
+<sequence_expr'>
+sequence_expr' -> "," assignment_expr sequence_expr'
+				| null
+</sequence_expr'>
+
+<assignment_expr>
+assignment_expr -> OR_expr assignment_expr'
+</assignment_expr>
+
+<assignment_expr'>
+assignment_expr' -> id.access assignment_op OR_expr assignment_expr'
+				  | null
+</assignment_expr'>
+
+<OR_expr>
+OR_expr -> AND_expr OR_expr'
+</OR_expr>
+
+<OR_expr'>
+OR_expr' -> "||" AND_expr OR_expr'
+		  | null
+</OR_expr'>
+
+<AND_expr>
+AND_expr -> equal_expr AND_expr'
+</AND_expr>
+
+<AND_expr'>
+AND_expr' -> "&&" equal_expr AND_expr'
+		   | null
+</AND_expr'>
+
+<equal_expr>
+equal_expr -> relational_expr equal_expr'
+</equal_expr>
+
+<equal_expr'>
+equal_expr' -> equal_op relational_expr equal_expr'
+			| null
+</equal_expr'>
+
+<relational_expr>
+relational_expr -> additive_expr relational_expr'
+</relational_expr>
+
+<relational_expr'>
+relational_expr' -> rel_op additive_expr relational_expr'
+				  | null
+</relational_expr'>
+
+<additive_expr>
+additive_expr -> multiplication_expr additive_expr'
+</additive_expr>
+
+<additive_expr'>
+additive_expr' -> add_op multiplication_expr additive_expr'
+				| null
+</additive_expr'>
+
+<multiplication_expr>
+multiplication_expr -> unary_expr multiplication_expr'
+</multiplication_expr>
+
+<multiplication_expr'>
+multiplication_expr' -> mul_op unary_expr multiplication_expr'
+					  | null
+</multiplication_expr'>
+
+<unary_expr>
+unary_expr -> postfix_expr unary_expr'
+</unary_expr>
+
+<unary_expr'>
+unary_expr' -> prefix_op postfix_expr unary_expr'
+			 | null
+</unary_expr'>
+
+<postfix_expr>
+postfix_expr -> id id_postfix
+			  | primary_expr
+</postfix_expr>
+
+<id_postfix>
+id_postfix -> postfix_operator
+			| variable_array
+			| function_call'
+			| identifier_accessP();
+			| null
+</id_postfix>
+
+<primary_expr>
+primary_expr -> num
+			  | "(" expr ")"
+</primary_expr>

@@ -1,0 +1,31 @@
+hecho c#
+-c++
+
+-sin includes (preprocesador)
+-gramatica:
+
+clases ignorar clases (no semantica)
+-soporta funciones de c
+-variables por referencia (no hay apuntadores, no full c)
+-string: suponer que existe clase string
+-soportar enumeraciones
+-soporta seccion de sentencias:
+	-if
+	-while
+	-do while
+	-for
+	-break
+	-continue
+	-llamadas a funcion
+	-asignacion
+
+-generar codigo (no optimo)
+
+-tipos: int, float, char, bool, string, considerar structs
+
+-operadores: +, -, *, /, %, &&, ||, !(not), ==, !=, <> (not eq), <=, >=, ++, --, +=, -=, *=, /=
+
+-arreglo multidimensionales
+-registros (structs)
+-gramatica para el viernes
+-parser lunes
