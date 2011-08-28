@@ -78,14 +78,12 @@ namespace Lexical
         #region constructores
 
         public Lexer(string path)
-        {
-            
+        {            
             tblOperadores.Add("+", TokenType.ADDITION);
             tblOperadores.Add("-", TokenType.SUBSTRACTION);
             tblOperadores.Add("*", TokenType.MULTIPLICATION);
             tblOperadores.Add("/", TokenType.DIVISION);
             tblOperadores.Add("%", TokenType.REMAINDER);
-
 
 
             tblOperadores.Add("&&", TokenType.AND);
@@ -104,12 +102,12 @@ namespace Lexical
             tblOperadores.Add("--", TokenType.DECREMENT);
             tblOperadores.Add("++", TokenType.INCREMENT);
 
+
             tblOperadores.Add("=", TokenType.ASSIGNMENT);
             tblOperadores.Add("+=", TokenType.ADDITION_ASSINGMENT);
             tblOperadores.Add("-=", TokenType.SUBSTRACTION_ASSIGNMENT);
             tblOperadores.Add("*=", TokenType.MULTIPLICATION_ASSIGNMENT);
             tblOperadores.Add("/=", TokenType.DIVISION_ASSIGNMENT);
-
 
 
             tblOperadores.Add("&", TokenType.AMPERSAND);
@@ -126,8 +124,7 @@ namespace Lexical
 
             
             tblOperadores.Add("\0", TokenType.EOF);
-            
-         
+                     
 
             tblPblReservadas.Add("string", TokenType.STRING);
             tblPblReservadas.Add("bool", TokenType.BOOL);
@@ -137,6 +134,7 @@ namespace Lexical
             tblPblReservadas.Add("struct", TokenType.STRUCT);
             tblPblReservadas.Add("enum", TokenType.ENUM);
 
+            
             tblPblReservadas.Add("const", TokenType.CONST);
             tblPblReservadas.Add("void", TokenType.VOID);
             tblPblReservadas.Add("if", TokenType.IF); 
@@ -145,13 +143,16 @@ namespace Lexical
             tblPblReservadas.Add("while", TokenType.WHILE);
             tblPblReservadas.Add("for", TokenType.FOR);
             
+            
             tblPblReservadas.Add("break", TokenType.BREAK);
             tblPblReservadas.Add("continue", TokenType.CONTINUE);
             tblPblReservadas.Add("return", TokenType.RETURN);
 
+            
             tblPblReservadas.Add("true", TokenType.TRUE);
             tblPblReservadas.Add("false", TokenType.FALSE);
 
+            
             StreamReader sr = File.OpenText(path);
             bufferInput = sr.ReadToEnd();
             sr.Close();

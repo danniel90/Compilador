@@ -21,9 +21,9 @@ clases ignorar clases (no semantica)
 
 -generar codigo (no optimo)
 
--tipos: int, float, char, bool, string, considerar structs
+-tipos: int, float, char, bool, string, considerar structs, enum
 
--operadores: +, -, *, /, %, &&, ||, !(not), ==, !=, <> (not eq), <=, >=, ++, --, +=, -=, *=, /=
+-operadores: +, -, *, /, %, &&, ||, !(not), ==, !=, <,> (not eq), <=, >=, ++, --, +=, -=, *=, /=
 
 -arreglo multidimensionales
 -registros (structs)

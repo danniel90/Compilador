@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 
 using Lexical;
+using SyntaxTree;
 
 namespace Syntax
 {
@@ -193,15 +194,7 @@ namespace Syntax
             if (peek("{"))
             {
                 match("{"); initializer_list(); match("}");
-            }
-            else if (peek(TokenType.CHARACTER_LITERAL))
-            {
-                match(TokenType.CHARACTER_LITERAL);
-            }
-            else if (peek(TokenType.STRING_LITERAL))
-            {
-                match(TokenType.STRING_LITERAL);
-            }
+            }            
             else
             {
                 assign_expr();
@@ -402,49 +395,12 @@ namespace Syntax
                 case TokenType.FLOAT:
                 case TokenType.INT:
                     variable_declaration(); variable_declarator();
-                    break;
-                case TokenType.VOID:
-                    variable_declaration(); function_callP();
-                    break;
+                    break;                
                 case TokenType.STRUCT:
                     struct_declarator(); match(TokenType.ID);
                     break;
             }
-        }
-        
-        #region function_call
-        void function_call()
-        {
-            if (peek("("))
-            {
-                function_callP();
-            }
-            //null
-        }
-
-        void function_callP()
-        {
-            match("("); parameter_list(); match(")");
-        }
-
-        void parameter_list()
-        {
-            if (peek(TokenType.ID))
-            {
-                identifier_access(); parameter_listP();
-            }
-            //null
-        }
-
-        void parameter_listP()
-        {
-            if (peek(","))
-            {
-                match(","); identifier_access(); parameter_listP();
-            }
-            //null
-        }
-        #endregion
+        }                
 
         #endregion
 
@@ -486,9 +442,7 @@ namespace Syntax
         {
             if (peek("."))
             {
-                match("."); //match(TokenType.ID);
-                direct_variable_declarator();
-                identifier_accessP();
+                match("."); direct_variable_declarator(); identifier_accessP();
             }
             //null
         }
@@ -499,33 +453,10 @@ namespace Syntax
 
         void if_statement()
         {
-            match("if"); match("("); condition(); match(")"); 
+            match("if"); match("("); expr(); ; match(")"); 
             if_compound_statement();
             elseif_();
-        }
-
-        void condition()
-        {
-            if (peek("true") || peek("false"))
-            {
-                conditionP();
-            }
-            else
-                expr();
-        }
-
-        void conditionP()
-        {
-            if (peek("true"))
-            {
-                match("true");
-            }
-            else if (peek("false"))
-            {
-                match("false");
-            } else
-                throw new Exception("Error en la declaracion de if statement linea: " + lex.line + " columna: " + lex.column + " currenttoken = " + currentToken.Lexema);                
-        }
+        }        
 
         void if_compound_statement()
         {
@@ -597,7 +528,7 @@ namespace Syntax
 
         void while_statement()
         {
-            match("while"); match("("); condition(); match(")"); 
+            match("while"); match("("); expr(); match(")"); 
             if_compound_statement();
         }
 
@@ -614,7 +545,7 @@ namespace Syntax
 
         void do_whileP()
         {
-            match("while"); match("("); condition(); match(")"); match(";");
+            match("while"); match("("); expr(); match(")"); match(";");
         }
 
         #endregion
@@ -966,12 +897,12 @@ namespace Syntax
             {
                 case TokenType.INCREMENT:
                 case TokenType.DECREMENT:
+                case TokenType.NOT:
                     prefix_operator(); postfix_expr(); unary_exprP();
                     break;
             }
             //null
         }
-
 
         void postfix_expr()
         {
@@ -991,11 +922,11 @@ namespace Syntax
             }
             else if (peek("["))
             {
-                variable_array(); identifier_access();
+                variable_array(); identifier_accessP();
             }
             else if (peek("("))
             {
-                function_callP();
+                function_call();
             }
             else if (peek("."))
             {
@@ -1022,6 +953,12 @@ namespace Syntax
         {
             switch (currentToken.Tipo)
             {
+                case TokenType.TRUE:
+                case TokenType.FALSE:
+
+                case TokenType.CHARACTER_LITERAL:
+                case TokenType.STRING_LITERAL:
+
                 case TokenType.INTEGER_LITERAL:
                 case TokenType.REAL_LITERAL:
                     currentToken = lex.nextToken();
@@ -1033,6 +970,33 @@ namespace Syntax
                     throw new Exception("Error en la expresion linea: " + lex.line + " columna: " + lex.column + " currenttoken -> " + currentToken.Lexema);
             }
         }
+
+        #region function_call
+
+        void function_call()
+        {
+            match("("); parameter_list(); match(")");
+        }
+
+        void parameter_list()
+        {
+            if (peek(TokenType.ID))
+            {
+                identifier_access(); parameter_listP();
+            }
+            //null
+        }
+
+        void parameter_listP()
+        {
+            if (peek(","))
+            {
+                match(","); identifier_access(); parameter_listP();
+            }
+            //null
+        }
+
+        #endregion
 
         #endregion
 

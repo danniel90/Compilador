@@ -9,7 +9,8 @@ const int entero[1+2], entero2,entero3[2], entero4;
 const bool func(){}
 
 int func(){
-  var = 2;
+	var = 2;
+	vatr = "s";
 }
 
 
@@ -41,7 +42,7 @@ int func(int *a, int &b, const int c[], int **d);
 int main(){
 	int var;
 	int var = 2 + func();
-	int var = var;
+	int var = true;
 	
 	func(a, b, c);
 	
