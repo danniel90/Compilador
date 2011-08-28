@@ -1,0 +1,87 @@
+string str;
+bool b;
+char b = {{b = s, d = c}, c = d}, c = d = d;
+
+string a = "aasasas";
+
+const int entero[1+2], entero2,entero3[2], entero4;
+
+const bool func(){}
+
+int func(){
+  var = 2;
+}
+
+
+
+struct a
+{
+	int a;
+	int b[1];
+	char b;
+	struct list elem;
+};
+
+struct a as;
+
+enum enumerador {suba, a = 1,b = a+2,c = 3};
+
+int a[1+2][2] = {1,2,3};
+int e = 12/1 + b + (c);
+int f;
+int b = 3 + 22, c[2] = 4 * b;
+
+/*
+int func(bool){}
+int func(string srt){}
+int func[](){}
+int func(int *a, int &b, const int c[], int **d);
+*/
+
+int main(){
+	int var;
+	int var = 2 + func();
+	int var = var;
+	
+	func(a, b, c);
+	
+	struct foo bar;
+	
+	bar.x.y -= 12 * 3 / var;
+	
+	++var;
+	--var;
+	
+	if (!(var == 2 && var)){
+		var.v.b.d.c.c += var;
+	} else if (var == 2){
+		var2--;
+	} else if (var == 2){
+		var++;
+		if (true){
+			var--;
+		}
+	}
+
+	for (;d < 1 ; i+=2){
+		var+=2;
+	}
+
+	do{
+		struct foo bar;
+		bar.x.y -= 12 * 3 / var;
+		++var;
+		--var;
+	}
+	while (true);
+	var++;
+
+	break;
+	continue;
+	return;
+	return var;
+	return var++;
+	return var.var;
+	return 1+1;
+	return xpr + 2;
+}
