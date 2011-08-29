@@ -1,14 +1,14 @@
 string str;
 bool b;
-char b = {{b = s, d = c}, c = d}, c = d = d;
+char c = {{b = s, d = c}, c = d}, c = d = d;
 
 string a = "aasasas";
 
 const int entero[1+23], entero2,entero3[2], entero4;
 
-const bool func(){}
+const bool func2(){}
 
-int func(){
+int func3(){
 	var = 2;
 	vatr = "s";
 }
@@ -19,18 +19,18 @@ struct a
 {
 	int a;
 	int b[1];
-	char b;
-	struct list elem;
+	char s;
+//	struct list elem;
 };
 
 struct a as;
 
 enum enumerador {suba, a = 1,b = a+2,c = 3};
 
-int a[1+2][2] = {1,2,3};
+int arr[1+2][2] = {1,2,3};
 int e = 12/1 + b + (c);
 int f;
-int b = 3 + 22, c[2] = 4 * b;
+int ent2 = 3 + 22, entc[2] = 4 * b;
 
 /*
 int func(bool){}
@@ -40,9 +40,9 @@ int func(int *a, int &b, const int c[], int **d);
 */
 
 int main(){
-	int var;
-	int var = 2 + func();
-	int var = true;
+	int var1;
+	int var2 = 2 + func();
+	int var3 = true;
 	
 	func(a, b, c);
 	
@@ -84,5 +84,5 @@ int main(){
 	return var++;
 	return var.var;
 	return 1+1;
-	return xpr + 2;
+	return xpr * 2;
 }

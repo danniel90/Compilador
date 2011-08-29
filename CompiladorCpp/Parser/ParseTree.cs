@@ -5,17 +5,446 @@ using System.Text;
 
 namespace SyntaxTree
 {
-    #region program
+    #region tipo
 
+    public abstract class Tipo
+    {
+        public virtual bool esEquivalente(Tipo t){ return false; }
+    }
 
+    public class Entero : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Entero;
+        }
+    }
+
+    public class Flotante : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Flotante;
+        }
+    }
+
+    public class Caracter : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Caracter;
+        }
+    }
+
+    public class Cadena : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Cadena;
+        }
+    }
+
+    public class Booleano : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Booleano;
+        }
+    }
+
+    public class Enumeracion : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Enumeracion;
+        }
+    }     
+
+    public class ListaCampos
+    {
+        public List<string> Campos;
+
+        public Dictionary<String, Tipo> tiposCampos;
+
+        public ListaCampos()
+        {
+            Campos = new List<string>();
+            tiposCampos = new Dictionary<string,Tipo>();
+        }
+    }
+
+    public class Registro : Tipo
+    {
+        public ListaCampos CamposRegistro;
+
+        public Registro(ListaCampos campos)
+        {
+            CamposRegistro = campos;
+        }
+
+        public override bool esEquivalente(Tipo t)
+        {
+            Registro r = (Registro)t;
+
+            if (CamposRegistro.Campos.Count == r.CamposRegistro.Campos.Count)
+            {
+                for (int i = 0; i < CamposRegistro.Campos.Count; i++)
+                {
+                    string miCampo = CamposRegistro.Campos[i];
+                    string otroCampo = r.CamposRegistro.Campos[i];
+
+                    if (!CamposRegistro.tiposCampos[miCampo].esEquivalente(r.CamposRegistro.tiposCampos[otroCampo]))
+                        return false;
+                }
+                return true;
+            }
+            else
+                return false;
+        }
+    }
+
+    public class Arreglo : Tipo
+    {
+        public List<int> Dimensiones;
+        public Tipo tipoArreglo;
+
+        public Arreglo(List<int> dimensiones, Tipo type)
+        {
+            Dimensiones = dimensiones;
+            tipoArreglo = type;
+        }
+
+        public override bool esEquivalente(Tipo t)
+        {
+            if (t is Arreglo)
+            {
+                Arreglo otroArreglo = (Arreglo)t;
+
+                if (otroArreglo.Dimensiones.Count == Dimensiones.Count)
+                {
+                    for (int i = 0; i < Dimensiones.Count; i++)
+                    {
+                        if (Dimensiones[i] != otroArreglo.Dimensiones[i])
+                            return false;
+                    }
+                    return true;
+                }
+                else
+                    return false;
+            }
+            else
+                return false;
+        }
+    }
 
     #endregion
 
+    #region program
     
+    #region Sentence
+    
+    public abstract class Sentence
+    {
+        public void print()
+        {
+            Console.WriteLine(genCode());
+        }
+        public virtual string genCode()
+        {
+            return "Sentencia";
+        }
+    }
+
+    #region VariableDeclaration
+
+    public class VariableDeclaration : Sentence
+    {
+        public Tipo tipo;
+        public List<VariableDeclarator> ids;
+
+        public VariableDeclaration(Tipo tipoVariable, List<VariableDeclarator> listaIds)
+        {
+            tipo = tipoVariable;
+            ids = listaIds;
+        }
+    }
+
+    public class VariableSubDeclaration : Sentence
+    {
+        public Tipo tipo;
+        public string Id;
+
+        public VariableSubDeclaration(Tipo tipovar, string id)
+        {
+            tipo = tipovar;
+            Id = id;
+        }
+    }
+
+    public class VariableDeclarator : Sentence
+    {
+        public string Id;
+        Initializers Inicializacion;
+
+        public VariableDeclarator(string id, Initializers inicializacion)
+        {
+            Id = id;
+            Inicializacion = inicializacion;
+        }
+    }
+
+    #region initializers
+
+    public abstract class Initializers 
+    {
+    }
+
+    public class VariableInitializer : Initializers
+    {
+        Expr Expresion;
+
+        public VariableInitializer(Expr expresion)
+        {
+            Expresion = expresion;
+        }
+    }
+
+    public class VariableInitializerList : Initializers
+    {
+        List<Initializers> initializerList;
+
+        public VariableInitializerList(List<Initializers> initializersList)
+        {
+            initializerList = initializersList;
+        }
+    }
+
+    #endregion
+
+    #endregion
+
+    #region functionDefinition
+    
+    public class FuncionDefinition : Sentence
+    {
+        List<Product> Parametros;
+        Statement CompoundStatement;
+        string funcionId;
+        Tipo tipoRetorno;
+        
+            public FuncionDefinition(List<Product> parametros, Statement CompoundStmnt, string id, Tipo retorno)
+        {
+            Parametros = parametros;
+            CompoundStatement = CompoundStmnt;
+            funcionId = id;
+            tipoRetorno = retorno;
+        }
+    }
+
+    public class Product
+    {
+        Tipo tipoParametro;
+        string IdParametro;
+
+        public Product(Tipo tipo,string idParametro)
+        {
+            tipoParametro = tipo;
+            IdParametro = idParametro;
+        }
+    }    
+
+    #endregion
+    
+    #endregion
+
+    #region Statement
+
+    public abstract class Statement : Sentence
+    {
+    }
+
+    public class CompoundStatement : Statement
+    {
+        public List<Statement> Sentencias;
+
+        public CompoundStatement(List<Statement> listaSentencias)
+        {
+            Sentencias = listaSentencias;
+        }
+    }
+
+    public class DeclarationStatement : Statement
+    {
+        public Tipo tipo;
+        public List<VariableDeclarator> ids;
+
+        public DeclarationStatement(Tipo tipoVariable, List<VariableDeclarator> listaIds)
+        {
+            tipo = tipoVariable;
+            ids = listaIds;
+        }
+    }
+
+    public class ExpressionStatement : Statement
+    {
+        Expr expresion;
+
+        public ExpressionStatement(Expr expr)
+        {
+            expresion = expr;
+        }
+    }
+
+    public class IfStatement : Statement
+    {
+        Statement Expresion;
+        Statement BloqueVerdadero, BloqueFalso;
+
+        public IfStatement(Statement expresion, Statement bloqueTrue, Statement bloqueFalse)
+        {
+            Expresion = expresion;
+            BloqueVerdadero = bloqueTrue;
+            BloqueFalso = bloqueFalse;
+        }
+    }
+
+    public class DoWhileStatement : Statement
+    {
+        public Statement expresion, compoundStatement;
+
+        public DoWhileStatement(Statement expr, Statement cpStmnt)
+        {
+            expresion = expr;
+            compoundStatement = cpStmnt;
+        }
+    }
+
+    public class WhileStatement : Statement
+    {
+        public Statement expresion, compoundstatement;
+
+        public WhileStatement(Statement expr, Statement cpStmnt)
+        {
+            expresion = expr;
+            compoundstatement = cpStmnt;
+        }
+    }
+
+    public class ForStatement : Statement
+    {
+        public Statement forInitialization, forControl, forIteration, CompoundStatement;
+
+        public ForStatement(Statement forInit, Statement forCtrl, Statement forIter, Statement cpStmnt)
+        {
+            forInitialization = forInit;
+            forControl = forCtrl;
+            forIteration = forIter;
+            CompoundStatement = cpStmnt;
+        }
+    }
+
+    public class ContinueStatement : Statement
+    {
+        public ContinueStatement()
+        {
+        }
+    }
+
+    public class BreakStatement : Statement
+    {
+        public BreakStatement()
+        {
+        }
+    }
+
+    public class ReturnStatement : Statement
+    {
+        public Statement expresion;
+
+        public ReturnStatement(Statement expr)
+        {
+            expresion = expr;
+        }
+    }
+
+    #endregion
+
+    #region StructDeclaration
+
+    public class StructVariableDeclaration : Sentence
+    {
+        string strId, strVarId;
+
+        public StructVariableDeclaration(string strid,string strvarname)
+        {
+            strId = strid;
+            strVarId = strvarname;
+        }
+    }
+
+    public class StructDeclaration : Sentence
+    {
+        string structName;
+        ListaCampos variables;
+
+        public StructDeclaration(string strName, ListaCampos vars)
+        {
+            structName = strName;
+            variables = vars;
+        }
+    }
+
+    public class StructVariableDeclarationStatement : Statement
+    {
+        string strId, strVarId;
+
+        public StructVariableDeclarationStatement(string strid,string strvarname)
+        {
+            strId = strid;
+            strVarId = strvarname;
+        }
+    }
+
+    #endregion
+
+    #region enums
+
+    public class EnumerationDeclaration : Sentence
+    {
+        string enumId;
+        List<VariableDeclarator> variables;
+
+        public EnumerationDeclaration(string id, List<VariableDeclarator> vars)
+        {
+            enumId = id;
+            variables = vars;
+        }
+    }
+
+    public class EnumerationVariableDeclaration : Sentence
+    {
+        string enumerationName, enumerationVarName;
+
+        public EnumerationVariableDeclaration(string enumName, string enumVarName)
+        {
+            enumerationName = enumName;
+            enumerationVarName = enumVarName;
+        }
+    }
+
+    #endregion
+
+    #endregion
+
+
     #region expresiones
 
     public abstract class Expr
     {
+        public void print()
+        {
+            Console.WriteLine(genCode());
+        }
         public virtual string genCode() 
         {
             return "Expr";
