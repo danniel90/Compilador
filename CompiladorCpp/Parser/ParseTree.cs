@@ -11,7 +11,7 @@ namespace SyntaxTree
 
     #endregion
 
-
+    
     #region expresiones
 
     public abstract class Expr
@@ -56,6 +56,46 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "AssignExpr";
+        }
+    }
+
+    public class AdditionAssignExpr : AssignExpr
+    {
+        public AdditionAssignExpr(Expr id, Expr valor) : base(id, valor) { }
+
+        public override string genCode()
+        {
+            return "AdditionAssignExpr";
+        }
+    }
+
+    public class SubstractionAssignExpr : AssignExpr
+    {
+        public SubstractionAssignExpr(Expr id, Expr valor) : base(id, valor) { }
+
+        public override string genCode()
+        {
+            return "SubstractionAssignExpr";
+        }
+    }
+
+    public class MultiplicationAssignExpr : AssignExpr
+    {
+        public MultiplicationAssignExpr(Expr id, Expr valor) : base(id, valor) { }
+
+        public override string genCode()
+        {
+            return "MultiplicationAssignExpr";
+        }
+    }
+
+    public class DivisionAssignExpr : AssignExpr
+    {
+        public DivisionAssignExpr(Expr id, Expr valor) : base (id, valor) { }
+
+        public override string genCode()
+        {
+            return "DivisionAssignExpr";
         }
     }
 
@@ -323,22 +363,7 @@ namespace SyntaxTree
 
     #endregion    
 
-    #region terminales : id, enteroLiteral, realLiteral, booleanoLiteral, caracterLiteral, cadenaLiteral, miembroRegistro, indiceArreglo, functionCall
-
-    public class Id : Expr
-    {
-        public string lexeme;
-
-        public Id(string lex)
-        {
-            lexeme = lex;
-        }
-
-        public override string genCode()
-        {
-            return "Id";
-        }
-    }
+    #region terminales : id, enteroLiteral, realLiteral, booleanoLiteral, caracterLiteral, cadenaLiteral, miembroRegistro, indiceArreglo, functionCall    
 
     public class EnteroLiteral : Expr
     {
@@ -413,16 +438,36 @@ namespace SyntaxTree
         {
             return "CadenaLiteral";
         }
+    }    
+
+    public abstract class ReferenceAccess : Expr
+    {
+        public string lexeme;
+
+        public ReferenceAccess(string lex)
+        {
+            lexeme = lex;
+        }
     }
 
-    public class MiembroRegistro : Expr
+    public class Id : ReferenceAccess
     {
-        public string Id, Member;
 
-        public MiembroRegistro(string id, string member)
+        public Id(string lex) : base(lex) { }
+
+        public override string genCode()
         {
-            Id = id;
-            Member = member;
+            return "Id";
+        }
+    }
+
+    public class MiembroRegistro : ReferenceAccess
+    {
+        public List<ReferenceAccess> Members;
+
+        public MiembroRegistro(string id, List<ReferenceAccess> members): base(id)
+        {
+            Members = members;
         }
 
         public override string genCode()
@@ -431,15 +476,13 @@ namespace SyntaxTree
         }
     }
 
-    public class IndiceArreglo : Expr
+    public class IndiceArreglo : ReferenceAccess
     {
-        public List<Expr> IndexList;
-        public string Id;
+        public List<Expr> IndexList;       
 
-        public IndiceArreglo(List<Expr> indexList, string id)
+        public IndiceArreglo(List<Expr> indexList, string id) : base(id)
         {
             IndexList = indexList;
-            Id = id;
         }
 
         public override string genCode()
@@ -448,14 +491,12 @@ namespace SyntaxTree
         }
     }
 
-    public class LlamadaFuncion : Expr
-    {
-        public string funcionId;
+    public class LlamadaFuncion : ReferenceAccess
+    {        
         public List<Expr> listaParametros;
 
-        public LlamadaFuncion(string id, List<Expr> parametros)
+        public LlamadaFuncion(string id, List<Expr> parametros) : base(id)
         {
-            funcionId = id;
             listaParametros = parametros;
         }
 

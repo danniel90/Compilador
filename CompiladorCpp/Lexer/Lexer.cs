@@ -20,7 +20,7 @@ namespace Lexical
         AND, OR, NOT,
         EQUAL, NOTEQUAL, GREATER, LESS, GREATER_EQUAL, LESS_EQUAL,
         DECREMENT, INCREMENT,
-        ASSIGNMENT, ADDITION_ASSINGMENT, SUBSTRACTION_ASSIGNMENT, MULTIPLICATION_ASSIGNMENT, DIVISION_ASSIGNMENT,
+        ASSIGNMENT, ADDITION_ASSIGNMENT, SUBSTRACTION_ASSIGNMENT, MULTIPLICATION_ASSIGNMENT, DIVISION_ASSIGNMENT,
 
         INTEGER_LITERAL, REAL_LITERAL, STRING_LITERAL, CHARACTER_LITERAL,
 
@@ -104,7 +104,7 @@ namespace Lexical
 
 
             tblOperadores.Add("=", TokenType.ASSIGNMENT);
-            tblOperadores.Add("+=", TokenType.ADDITION_ASSINGMENT);
+            tblOperadores.Add("+=", TokenType.ADDITION_ASSIGNMENT);
             tblOperadores.Add("-=", TokenType.SUBSTRACTION_ASSIGNMENT);
             tblOperadores.Add("*=", TokenType.MULTIPLICATION_ASSIGNMENT);
             tblOperadores.Add("/=", TokenType.DIVISION_ASSIGNMENT);

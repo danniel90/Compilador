@@ -4,7 +4,7 @@ char b = {{b = s, d = c}, c = d}, c = d = d;
 
 string a = "aasasas";
 
-const int entero[1+2], entero2,entero3[2], entero4;
+const int entero[1+23], entero2,entero3[2], entero4;
 
 const bool func(){}
 
@@ -48,7 +48,7 @@ int main(){
 	
 	struct foo bar;
 	
-	bar.x.y -= 12 * 3 / var;
+	bar.x.x.v -= 12 * 3 / var;
 	
 	++var;
 	--var;
@@ -70,7 +70,7 @@ int main(){
 
 	do{
 		struct foo bar;
-		bar.x.y -= 12 * 3 / var;
+		/*bar.*/x.y -= 12 * 3 / var;
 		++var;
 		--var;
 	}
