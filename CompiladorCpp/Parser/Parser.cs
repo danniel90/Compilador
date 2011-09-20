@@ -5,6 +5,7 @@ using System.Text;
 
 using Lexical;
 using SyntaxTree;
+using Semantic;
 
 namespace Syntax
 {
@@ -12,38 +13,37 @@ namespace Syntax
     {
         #region variables
         public Token currentToken;
-        public Lexer lex;        
+        public Lexer lex;
+
+        public static Env entorno;
         #endregion
 
         #region constructores
         public Parser(string path)
         {
-            lex = new Lexer(path);            
+            lex = new Lexer(path);
+            entorno = new Env(null);
         }
         #endregion
 
         #region funciones
+
         public void compile()
         {
             currentToken = lex.nextToken();
-            List<Sentence> sentencias = program();
+            Sentence sentencias = program();
 
-            int cont = 1;
-            foreach (Sentence s in sentencias)
-            {
-                Console.Write(cont++ + " - "); 
-                s.print();                
-            }
+            sentencias.genCode();
         }
 
-        List<Sentence> program()
-        {
-            List<Sentence> sentencias = new List<Sentence>();
-            global_sentence(sentencias); match("\0");
+        Sentence program()
+        { 
+            Sentence sentencias = global_sentence(); 
+            match("\0");
             return sentencias;
         }
 
-        void global_sentence(List<Sentence> sentencias)
+        Sentence global_sentence()
         {
             switch(currentToken.Tipo)
             {
@@ -56,16 +56,15 @@ namespace Syntax
                 case TokenType.CONST:
                 case TokenType.STRUCT:
                 case TokenType.ENUM:
-                    Sentence sent = sentence();
-                    sentencias.Add(sent);
-                    global_sentenceP(sentencias);
-                    break;
+                    Sentence sentencia = sentence();
+                    return global_sentenceP(sentencia);
+
                 default:
-                    throw new Exception("Global sentence exception! wtf!!! linea: " + lex.line + " columna: " + lex.column + " currentToken -> " + currentToken.Lexema);
+                    throw new Exception("Global sentence exception! wtf!!! linea: " + Lexer.line + " columna: " + Lexer.column + " currentToken -> " + currentToken.Lexema);
             }
         }
 
-        void global_sentenceP(List<Sentence> sentencias)
+        Sentence global_sentenceP(Sentence sentencia1)
         {
             switch(currentToken.Tipo)
             {
@@ -77,73 +76,53 @@ namespace Syntax
                 case TokenType.VOID:
                 case TokenType.CONST:
                 case TokenType.STRUCT:
-                case TokenType.ENUM:            
-                    Sentence sent = sentence();
-                    sentencias.Add(sent);
-                    global_sentenceP(sentencias);
-                    break;
+                case TokenType.ENUM:
+                    Sentence sentencia2 = sentence();
+                    SentenceSenquence sentSequence = new SentenceSenquence(sentencia1, sentencia2);
+                    return global_sentenceP(sentSequence);
+                
+                default:
+                    return sentencia1;//null
             }
-            //null
         }
 
         Sentence sentence()
         {
-            switch (currentToken.Tipo)
+            try
             {
-                case TokenType.CONST:                    
-                    VariableSubDeclaration constVarSubDeclaration = (VariableSubDeclaration)constant_declaration();
-                    
-                    if (peek("("))
-                    {
-                        FuncionDefinition funcionDefinition = (FuncionDefinition)function_declaration(constVarSubDeclaration.tipo, constVarSubDeclaration.Id);
-                        return funcionDefinition;
-                    }
-                    else
-                    {
-                        List<VariableDeclarator> varDecs = variable_declarator(constVarSubDeclaration); 
+                switch (currentToken.Tipo)
+                {
+                    case TokenType.CONST:
+                        return constant_declaration();                        
+
+                    case TokenType.ENUM:
+                        Sentence sentence = enum_declaration();
                         match(";");
+                        return sentence;
 
-                        VariableDeclaration varDeclaration = new VariableDeclaration(constVarSubDeclaration.tipo, varDecs);
-                        return varDeclaration;
-                    }                    
-                    
-                case TokenType.ENUM:
-                    Sentence sentence =  enum_declaration();  
-                    match(";");
-                    return sentence;
-
-                case TokenType.STRUCT:
-                    Sentence structDec = struct_declaration(); 
-                    match(";");
-                    return structDec;
-
-                case TokenType.STRING:
-                case TokenType.BOOL:
-                case TokenType.CHAR:
-                case TokenType.FLOAT:
-                case TokenType.INT:
-                    VariableSubDeclaration varSubDeclaration = (VariableSubDeclaration)variable_declaration();
-                    
-                    if (peek("("))
-                    {
-                        FuncionDefinition funcionDefinition = (FuncionDefinition)function_declaration(varSubDeclaration.tipo, varSubDeclaration.Id);
-                        return funcionDefinition;                        
-                    }
-                    else
-                    {
-                        List<VariableDeclarator> varDecs = variable_declarator(varSubDeclaration);
+                    case TokenType.STRUCT:
+                        Sentence structDec = struct_declaration();
                         match(";");
+                        return structDec;
 
-                        VariableDeclaration varDeclaration = new VariableDeclaration(varSubDeclaration.tipo, varDecs);
-                        return varDeclaration;
-                    }
+                    case TokenType.STRING:
+                    case TokenType.BOOL:
+                    case TokenType.CHAR:
+                    case TokenType.FLOAT:
+                    case TokenType.INT:
+                        return variable_declaration();                        
 
-                case TokenType.VOID:
-                    string id = void_declaration();  
-                    return function_declaration(null, id);
+                    case TokenType.VOID:
+                        string id = void_declaration();
+                        return function_declaration(null, id);
 
-                default:
-                    return null;
+                    default:
+                        return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(ex.ToString() + "|SENTENCE| Error en la declaracion de sentenceia linea:" + Lexer.line + " columna:" + Lexer.column);
             }
         }
 
@@ -151,11 +130,26 @@ namespace Syntax
 
         Sentence variable_declaration()
         {
-            Tipo t = variable_type();
-            string id = direct_variable_declarator();            
+            Tipo tipoVariables = variable_type();//tipo basico para todas las variables, si hay mas
 
-            VariableSubDeclaration variableSubDeclaration = new VariableSubDeclaration(t, id);
-            return variableSubDeclaration;
+            Tipo tipoVariable = tipoVariables;
+            string idVariable = direct_variable_declarator(tipoVariable);
+
+            if (peek("("))
+            {
+                return function_declaration(tipoVariable, idVariable);
+            }
+            else
+            {
+                VariableSubDeclarator primerVariable = new VariableSubDeclarator(tipoVariable, idVariable);
+
+                VariableDeclarator primerDeclaracionVariable = new VariableDeclarator(primerVariable, null);//todavia no hemos visto inicializadores
+
+                VariableDeclarations variableDeclarations = variable_declarator(primerDeclaracionVariable, tipoVariables);//para las variables que siguen
+                match(";");
+
+                return variableDeclarations;
+            }
         }
 
         Tipo variable_type()
@@ -183,15 +177,17 @@ namespace Syntax
                     return new Entero();
                     
                 default:
-                    throw new Exception("Error en la declaracion de tipo linea: " + lex.line + " columna: " + lex.column + " currenttoken = " + currentToken.Lexema);
+                    throw new Exception("Error en la declaracion de tipo linea: " + Lexer.line + " columna: " + Lexer.column + " currenttoken = " + currentToken.Lexema);
             }
         }
 
-        string direct_variable_declarator()
+        string direct_variable_declarator(Tipo tipoVariable)
         {
-            string id = variable_name();            
+            string id = variable_name();
             
-            variable_array();
+            if (peek("["))
+                tipoVariable = variable_array(tipoVariable);
+
             return id;
         }
 
@@ -202,43 +198,55 @@ namespace Syntax
             return id;
         }
 
-        void variable_array()
+        Tipo variable_array(Tipo tipoArreglo)
         {
             if (peek("["))
             {
-                match("["); expr(); match("]");
-                variable_array();//arreglos multidimensionales
-            }
-            //null
-        }
+                match("["); 
+                //Expr sizeExpr = expr();
+                int sizeExpr = Int32.Parse(currentToken.Lexema);
+                match(TokenType.INTEGER_LITERAL);
+                match("]");
 
-        #endregion
+                Tipo tipoArreglo2 = variable_array(tipoArreglo);
+                
+                return new Arreglo(tipoArreglo2, sizeExpr);
+            }
+            return tipoArreglo;//null
+        }        
 
         #region variable_declarator
 
-        List<VariableDeclarator> variable_declarator(VariableSubDeclaration variableSubDeclaration)
+        VariableDeclarations variable_declarator(VariableDeclarator primerVariable, Tipo tipoVariables)
         {
-            Initializers init = variable_initializer();
-            
-            List<VariableDeclarator> variableDeclaratorList = new List<VariableDeclarator>();
-            variableDeclaratorList.Add(new VariableDeclarator(variableSubDeclaration.Id, init));
+            primerVariable.initialization = variable_initializer();//primer variable viene sin inicializador
 
-            variable_declarators(variableDeclaratorList);
+            entorno.put(primerVariable.declaration.id, primerVariable.declaration.tipo);//tablasimbolos
 
-            return variableDeclaratorList;
+            VariableDeclaration listaDeclaracionVariables = variable_declarators(primerVariable, tipoVariables);
+
+            return new VariableDeclarations(listaDeclaracionVariables);
         }
 
-        void variable_declarators(List<VariableDeclarator> varDeclarationList)
+        VariableDeclaration variable_declarators(VariableDeclaration beforeDeclaration, Tipo tipoVariables)
         {
             if (peek(","))
             {
-                match(","); 
-                string id = direct_variable_declarator(); 
-                Initializers init = variable_initializer(); 
-                varDeclarationList.Add(new VariableDeclarator(id, init));
-                variable_declarators(varDeclarationList);
+                match(",");
+                Tipo tipoVariable = tipoVariables;
+                string idVariable = direct_variable_declarator(tipoVariable);
+                Initializers init = variable_initializer();
+
+                entorno.put(idVariable, tipoVariable);//tablasimbolos
+
+                VariableSubDeclarator variableActual = new VariableSubDeclarator(tipoVariable, idVariable);                
+                VariableDeclarator actualDeclaration = new VariableDeclarator(variableActual, init);
+                VariableDeclarators variableDeclarators = new VariableDeclarators(beforeDeclaration, actualDeclaration);
+
+                return variable_declarators(variableDeclarators, tipoVariables);
             }
-            //null
+            else
+                return beforeDeclaration;//null
         }
 
         #endregion
@@ -249,7 +257,6 @@ namespace Syntax
         {
             if (peek("="))
             {
-                //initializers();
                 match("=");
                 return initializer();
             }
@@ -263,15 +270,16 @@ namespace Syntax
             {
                 match("{");
                 List<Initializers> varInitializerList = new List<Initializers>();
-                VariableInitializerList varInitList = initializer_list(varInitializerList); 
+                VariableInitializerList varInitList = initializer_list(varInitializerList);
                 match("}");
 
                 return varInitList;
-            }            
+            }
             else
             {
                 Expr expresion = expr();
                 VariableInitializer varInitializer = new VariableInitializer(expresion);
+                
                 return varInitializer;
             }
         }
@@ -280,6 +288,7 @@ namespace Syntax
         {
             Initializers varInit = initializer();
             initlist.Add(varInit);
+
             initializer_listP(initlist);
 
             return new VariableInitializerList(initlist);
@@ -299,60 +308,60 @@ namespace Syntax
 
         #endregion
 
+        #endregion
+
         #region functions ()
 
         Sentence function_declaration(Tipo retorno, string id)
         {
             match("(");
-            List<Product> paramsTypeList = parameter_type_list(); 
+            Tipo paramsTypeList = parameter_type_list(); 
             match(")");
+
+            if (paramsTypeList != null)
+            {
+                Funcion funcion = new Funcion(retorno, paramsTypeList);
+                entorno.put(id, funcion);//global
+            }
+
             Statement compoundStmnt = function_definition();
 
-            FuncionDefinition funcDefinition = new FuncionDefinition(paramsTypeList, compoundStmnt, id, retorno);
+            FuntionDefinition funcDefinition = new FuntionDefinition(id, retorno, compoundStmnt);
+            //FuncionDefinition funcDefinition = new FuncionDefinition(paramsTypeList, compoundStmnt, id, retorno);
             return funcDefinition;
         }
 
-        #region parameters_type_list
+        #region parameters_type_lis
 
-        List<Product> parameter_type_list()
+        Tipo parameter_type_list()
         {
-            List<Product> parameterTypeList = new List<Product>();
-            
-            Product param = parameter_declaration();
-            parameterTypeList.Add(param);            
-            parameter_type_listP(parameterTypeList);
+            bool isConstant = declaration_specifer();
+            Tipo tipoParam = parameter_type();
 
-            return parameterTypeList;
-        }
-
-        void parameter_type_listP(List<Product> paramTypeList)
-        {
-            if (peek(","))
+            if (tipoParam != null)
             {
-                match(",");
-                Product param = parameter_declaration();
-                paramTypeList.Add(param);
-                parameter_type_listP(paramTypeList);
+
+                bool isReference = reference();
+                string id = parameter_name(tipoParam);
+
+                return parameter_type_listP(tipoParam);
             }
-            //null
+            else
+                return null;
         }
 
-        Product parameter_declaration()
-        {
-            declaration_specifer(); 
-            return parameter_type();
-        }
-
-        void declaration_specifer()
+        bool declaration_specifer()
         {
             if (peek("const"))
             {
                 match("const");
+                return true;
             }
-            //null
+            else
+                return false;//null  
         }
 
-        Product parameter_type()
+        Tipo parameter_type()
         {
             switch (currentToken.Tipo)
             {
@@ -361,39 +370,51 @@ namespace Syntax
                 case TokenType.CHAR:
                 case TokenType.FLOAT:
                 case TokenType.INT:
-                    Tipo tipoParametro = variable_type(); 
-                    string idParametro = parameter();
-                    
-                    Product parametro = new Product(tipoParametro, idParametro);
-                    return parametro;
+                    return variable_type();
+
+                case TokenType.STRUCT:
+                case TokenType.ENUM:
+                    throw new NotImplementedException("Falta implementar strcuts y enums como parametros");
 
                 default:
-                    return null;
+                    return null;//null
             }
-            //null
         }
 
-        string parameter()
-        {
-            reference(); 
-            string parameter = parameter_name();
-            return parameter;
-        }
-
-        void reference()
+        bool reference()
         {
             if (peek("&"))
             {
                 match("&");
+                return true;
             }
-            //null
-        } 
+            else
+                return false;//null            
+        }
 
-        string parameter_name()
+        string parameter_name(Tipo tipoParametro)
         {
-            string parameterid = direct_variable_declarator();
+            string parameterid = direct_variable_declarator(tipoParametro);
             return parameterid;
-        }     
+        }
+
+        Tipo parameter_type_listP(Tipo beforeParameter)
+        {
+            if (peek(","))
+            {
+                match(",");
+
+                bool isConstant = declaration_specifer();
+                Tipo actualParameter = parameter_type();
+                bool isReference = reference();
+                string id = parameter_name(actualParameter);
+
+                Product producto = new Product(beforeParameter, actualParameter);
+                return parameter_type_listP(producto);
+            }
+            else
+                return beforeParameter;//null   
+        }
 
         #endregion
 
@@ -406,25 +427,22 @@ namespace Syntax
 
         Statement compound_statement()
         {
-            match("{"); 
-            List<Statement> stList = statement_list(); 
+            match("{");
+            Statement stList = statement_list();
             match("}");
 
             CompoundStatement cpStmt = new CompoundStatement(stList);
             return cpStmt;
         }
 
-        List<Statement> statement_list()
+        Statement statement_list()
         {
-            List<Statement> statementList = new List<Statement>();
             Statement stmnt = statement();
-            statementList.Add(stmnt);
 
-            statement_listP(statementList);
-            return statementList;
+            return statement_listP(stmnt);
         }
 
-        void statement_listP(List<Statement> statementList)
+        Statement statement_listP(Statement statement1)
         {
             switch (currentToken.Tipo)
             {
@@ -447,13 +465,14 @@ namespace Syntax
                 case TokenType.RETURN:
                 case TokenType.BREAK:
                 case TokenType.CONTINUE:
-                    Statement stmnt = statement();
-                    statementList.Add(stmnt);
+                    Statement statement2 = statement();
 
-                    statement_listP(statementList);
-                    break;
-            }
-            //null
+                    StatementSequence statementList = new StatementSequence(statement1, statement2);
+                    return statement_listP(statementList);
+
+                default:
+                    return statement1;//null
+            }            
         }
 
         Statement statement()
@@ -467,9 +486,10 @@ namespace Syntax
                 case TokenType.INT:
                 case TokenType.VOID:
                 case TokenType.STRUCT:
-                    Statement decStmt = declaration_statement(); 
+                    //Statement decStmt = declaration_statement(); 
                     match(";");
-                    return decStmt;
+                    //return decStmt;
+                    return null;
 
                 case TokenType.DECREMENT:
                 case TokenType.INCREMENT:
@@ -511,6 +531,7 @@ namespace Syntax
             //null
         }
 
+        /*
         #region declaration_statement
         
         Statement declaration_statement()
@@ -522,12 +543,18 @@ namespace Syntax
                 case TokenType.CHAR:
                 case TokenType.FLOAT:
                 case TokenType.INT:
-                    //variable_declaration(); variable_declarator();
-                    VariableSubDeclaration varSubDeclaration = (VariableSubDeclaration)variable_declaration();
-                    List<VariableDeclarator> varDecList = variable_declarator(varSubDeclaration);
+                    //return (Statement)variable_declaration();
+                    Tipo tipoVariables = variable_type();//tipo basico para todas las variables, si hay mas
+                    Tipo tipoVariable = tipoVariables;
+                    string idVariable = direct_variable_declarator(tipoVariable);
 
-                    DeclarationStatement decStatement = new DeclarationStatement(varSubDeclaration.tipo, varDecList);
-                    return decStatement;
+                    VariableSubDeclarator primerVariable = new VariableSubDeclarator(tipoVariable, idVariable);
+                    VariableDeclaratorStatement primerDeclaracionVariable = new VariableDeclaratorStatement(primerVariable, null);//todavia no hemos visto inicializadores
+                    VariableDeclarationsStatement variableDeclarations = variable_declaratorStatement(primerDeclaracionVariable, tipoVariables);//para las variables que siguen
+                    
+                    //match(";");
+
+                return variableDeclarations;
 
                 case TokenType.STRUCT:
                     string strId = struct_declarator();
@@ -538,17 +565,54 @@ namespace Syntax
                     return strVarDec;
 
                 default:
-                    throw new Exception("Error en la declaracion de variables de statement linea: " + lex.line + " columna: " + lex.column + " currenttoken = " + currentToken.Lexema);
+                    throw new Exception("Error en la declaracion de variables de statement linea: " + Lexer.line + " columna: " + Lexer.column + " currenttoken = " + currentToken.Lexema);
             }
-        }            
+        }    
+        
+        #region variable_declaratorStatement
 
-        #endregion      
+        VariableDeclarationsStatement variable_declaratorStatement(VariableDeclaratorStatement primerVariable, Tipo tipoVariables)
+        {
+            primerVariable.initialization = variable_initializer();//primer variable viene sin inicializador
+
+            entorno.put(primerVariable.declaration.id, primerVariable.declaration.tipo);//tablasimbolos
+
+            VariableDeclarationStatement listaDeclaracionVariables = variable_declaratorsStatement(primerVariable, tipoVariables);
+
+            return new VariableDeclarationsStatement(listaDeclaracionVariables);
+        }
+
+        VariableDeclarationStatement variable_declaratorsStatement(VariableDeclarationStatement beforeDeclaration, Tipo tipoVariables)
+        {
+            if (peek(","))
+            {
+                match(",");
+                Tipo tipoVariable = tipoVariables;
+                string idVariable = direct_variable_declarator(tipoVariable);
+                Initializers init = variable_initializer();
+
+                entorno.put(idVariable, tipoVariable);//tablasimbolos
+
+                VariableSubDeclarator variableActual = new VariableSubDeclarator(tipoVariable, idVariable);
+                VariableDeclaratorStatement actualDeclaration = new VariableDeclaratorStatement(variableActual, init);
+                VariableDeclaratorsStatement variableDeclarators = new VariableDeclaratorsStatement(beforeDeclaration, actualDeclaration);
+
+                return variable_declaratorsStatement(variableDeclarators, tipoVariables);
+            }
+            else
+                return beforeDeclaration;//null
+        }
+
+        #endregion
+
+        #endregion
+        */
 
         #region expression_statement
-        
+
         Statement expression_statement()
         {
-            Expr expresion = expr();
+            Expr expresion = expr();            
             ExpressionStatement exprStatement = new ExpressionStatement(expresion);
             return exprStatement;
         }
@@ -561,12 +625,11 @@ namespace Syntax
         {
             match("if"); 
             match("(");
-            Statement expresion = expression_statement();
+            Expr expresion = expr();           
             match(")");
- 
-            Statement ifCpnd = if_compound_statement();
-            //IfStatement ifStmnt = new IfStatement(expresion, compound_statement, );
-            return elseif_(expresion, ifCpnd);
+            Statement trueBlock = if_compound_statement();
+
+            return elseif_(expresion, trueBlock);
         }        
 
         Statement if_compound_statement()
@@ -579,35 +642,36 @@ namespace Syntax
                 return statement();
         }
 
-        Statement elseif_(Statement expr, Statement ifCompound)
+        Statement elseif_(Expr condicion ,Statement trueBlock)
         {
             if (peek("else"))
             {
                 match("else");
-                return elseif_P(expr, ifCompound);
+                Statement falseBLock = elseif_P(condicion, trueBlock);
+                return new IfElseStatement(condicion, trueBlock, falseBLock);
             }
             else
             {
-                IfStatement ifStmnt = new IfStatement(expr, ifCompound, null);
-                return ifStmnt;
+                return new IfStatement(condicion, trueBlock);
             }
-            //null
         }
 
-        Statement elseif_P(Statement expr, Statement ifCompound)
+        Statement elseif_P(Expr condicion, Statement trueBlock)
         {
             if (peek("if"))
             {
-                Statement Stmnt = if_statement(); //elseif_();
-                IfStatement ifStmnt = new IfStatement(expr, ifCompound, Stmnt);
-                return ifStmnt;
+                match("if");
+                match("(");
+                Expr expresion = expr();
+                match(")");
+                Statement elseIfTrueBlock = if_compound_statement();
+
+                return elseif_(expresion, elseIfTrueBlock);
             }
             else
             {
-                Statement elseCompound = if_compound_statement();
-
-                IfStatement ifStmnt = new IfStatement(expr, ifCompound, elseCompound);
-                return ifStmnt;
+                Statement falseBlock = if_compound_statement();
+                return new IfElseStatement(condicion, trueBlock, falseBlock);
             }
         }
 
@@ -663,7 +727,8 @@ namespace Syntax
         {
             match("while");
             match("(");
-            Statement expresion = expression_statement();
+            Expr expresion = expr();
+            //Statement expresion = expression_statement();            
             match(")"); 
             Statement ifCpStmnt = if_compound_statement();
 
@@ -688,8 +753,8 @@ namespace Syntax
         {
             match("while");
             match("("); 
-            //expr();
-            Statement exprStmnt = expression_statement();
+            Expr exprStmnt = expr();
+            //Statement exprStmnt = expression_statement();
             match(")");
             match(";");
 
@@ -727,8 +792,8 @@ namespace Syntax
                 case TokenType.CHAR:
                 case TokenType.FLOAT:
                 case TokenType.INT:
-                    //variable_declaration();
-                    return declaration_statement();
+                    //return declaration_statement();
+                    return null;
                 
                 case TokenType.ID:
                 case TokenType.INCREMENT:
@@ -842,7 +907,9 @@ namespace Syntax
             string varName = variable_name();
             VariableInitializer varInit = enum_constant_expressionP();
 
-            VariableDeclarator varDeclarator = new VariableDeclarator(varName, varInit);
+            VariableSubDeclarator varSubDec = new VariableSubDeclarator(new Enumeracion(), varName);
+
+            VariableDeclarator varDeclarator = new VariableDeclarator(varSubDec, varInit);
             return varDeclarator;
         }
 
@@ -851,7 +918,7 @@ namespace Syntax
             if (peek("="))
             {
                 match("=");
-                Expr constantExpr = OR_expr();
+                Expr constantExpr = OR_expr();                
                 VariableInitializer varInit = new VariableInitializer(constantExpr);
                 return varInit;
             }
@@ -863,9 +930,10 @@ namespace Syntax
         #endregion
 
         #region struct_declaration
+        
         Sentence struct_declaration()
         {
-            string strId = struct_declarator(); 
+            string strId = struct_declarator();
             return struct_declarationP(strId);
         }
 
@@ -882,104 +950,103 @@ namespace Syntax
         {
             if (peek("{"))
             {
-                match("{");
-                ListaCampos lCampos = new ListaCampos();
-                variable_declaration_list(lCampos);
+                match("{");                
+                Env savedEnv = entorno;
+                entorno = new Env(null);
+                Sentence strDec = variable_declaration_list();
                 match("}");
 
-                StructDeclaration strDec = new StructDeclaration(structName, lCampos);
+                Registro record = new Registro(entorno);
+                
+                entorno = savedEnv;                
                 return strDec;
             }
             else
             {
+                Tipo varRecord = entorno.get(structName);
                 string strVarName = currentToken.Lexema;
                 match(TokenType.ID);
-                StructVariableDeclaration strVarDec = new StructVariableDeclaration(structName, strVarName);
-                return strVarDec;
+                return new StructVariableDeclaration(structName, strVarName, varRecord);
             }
         }
 
-        void variable_declaration_list(ListaCampos variables)
+        Sentence variable_declaration_list()
         {
-            try
+            switch (currentToken.Tipo)
             {
-                switch (currentToken.Tipo)
-                {
-                    case TokenType.STRING:
-                    case TokenType.BOOL:
-                    case TokenType.CHAR:
-                    case TokenType.FLOAT:
-                    case TokenType.INT:
-                        Tipo t = variable_type();
-                        string id = direct_variable_declarator();
+                case TokenType.STRING:
+                case TokenType.BOOL:
+                case TokenType.CHAR:
+                case TokenType.FLOAT:
+                case TokenType.INT:
+                    Tipo t = variable_type();
+                    string id = direct_variable_declarator(t);
+                    entorno.put(id, t);
+                    match(";");
 
-                        variables.Campos.Add(id);
-                        variables.tiposCampos.Add(id, t);
+                    StructDeclaration strDec = new StructDeclaration();
+                    
+                    return variable_declaration_listP(strDec);
+                    
+                case TokenType.STRUCT:
+                    string structName = struct_declarator();
+                    string structVarName = currentToken.Lexema;
+                    Tipo varRecord = entorno.get(structName);
+                    match(TokenType.ID); 
+                    match(";");
 
-                        match(";");
-                        variable_declaration_listP(variables);
-                        break;
-                    /*case TokenType.STRUCT:
-                        string structName = struct_declarator();
-
-                        string structVarName = currentToken.Lexema;
-                        match(TokenType.ID); 
-                        match(";");
-
-                        Registro r = new Registro(
-
-                        variable_declaration_listP();
-                        break;*/
-                    default:
-                        throw new Exception("Error en la declaracion de variables de struct linea: " + lex.line + " columna: " + lex.column + " currenttoken = " + currentToken.Lexema);
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.ToString() + " En la linea:" + lex.line + " columna:" + lex.column );
+                    StructVariableDeclaration strVarDec = new StructVariableDeclaration(structName, structVarName, varRecord);
+                    return variable_declaration_listP(strVarDec);
+                
+                default:
+                    throw new Exception("Error en la declaracion de variables de struct linea: " + Lexer.line + " columna: " + Lexer.column + " currenttoken = " + currentToken.Lexema);
             }
         }
 
-        void variable_declaration_listP(ListaCampos variables)
-        {
-            try
+        Sentence variable_declaration_listP(Sentence strDec)
+        {            
+            switch (currentToken.Tipo)
             {
-                switch (currentToken.Tipo)
-                {
-                    case TokenType.STRING:
-                    case TokenType.BOOL:
-                    case TokenType.CHAR:
-                    case TokenType.FLOAT:
-                    case TokenType.INT:
-                        Tipo t = variable_type();
-                        string id = direct_variable_declarator();
+                case TokenType.STRING:
+                case TokenType.BOOL:
+                case TokenType.CHAR:
+                case TokenType.FLOAT:
+                case TokenType.INT:
+                    Tipo t = variable_type();
+                    string id = direct_variable_declarator(t);
 
-                        variables.Campos.Add(id);
-                        variables.tiposCampos.Add(id, t);
+                    entorno.put(id, t);
+                    
+                    match(";");
 
-                        match(";");
-                        variable_declaration_listP(variables);
+                    StructDeclaration structDec = new StructDeclaration();
+                    SentenceSenquence stSeq = new SentenceSenquence(strDec, structDec);
+                    return variable_declaration_listP(stSeq);
+                
+                case TokenType.STRUCT:
+                    string structName = struct_declarator();
+                    string structVarName = currentToken.Lexema;
+                    Tipo varRecord = entorno.get(structName);
+                    match(TokenType.ID);
+                    match(";");
 
-                        break;
-                    /*case TokenType.STRUCT:
-                        struct_declarator(); match(TokenType.ID); match(";"); variable_declaration_listP();
-                        break;                */
-                }
-                //null
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.ToString() + " En la linea:" + lex.line + " columna:" + lex.column);
-            }
+                    StructVariableDeclaration strVarDec = new StructVariableDeclaration(structName, structVarName, varRecord);
+                    SentenceSenquence stSeq2 = new SentenceSenquence(strDec, strVarDec);
+                    return variable_declaration_listP(stSeq2);
+
+                default:
+                    return strDec;//null
+            }            
         }
+
         #endregion
         
         #region void declaration
         
         string void_declaration()
         {
-            match("void"); 
-            string functionName = direct_variable_declarator();
+            match("void");
+            string functionName = variable_name();
             return functionName;
         }
         
@@ -996,43 +1063,27 @@ namespace Syntax
 
         Expr sequence_expr()
         {
-            Expr expresion = assign_expr();
-            if (peek(","))
-            {
-                List<Expr> listaExpresiones = new List<Expr>();
-                sequence_exprP(listaExpresiones);
-
-                SequenceExpr sequenceexpr = new SequenceExpr(listaExpresiones);
-                return sequenceexpr;
-            }
-            else
-                return expresion;
+            Expr expr1 = assign_expr();
+            return sequence_exprP(expr1);            
         }
 
-        void sequence_exprP(List<Expr> listaExpresiones)
+        Expr sequence_exprP(Expr expr1)
         {
             if (peek(","))
             {
-                match(","); listaExpresiones.Add(assign_expr()); sequence_exprP(listaExpresiones);
+                match(",");
+                Expr expr2 = assign_expr();
+                SequenceExpr seqExpr = new SequenceExpr(expr1, expr2);
+                return sequence_exprP(seqExpr);
             }
-            //null
+            else
+                return expr1;//null
         }
 
         Expr assign_expr()
         {
             Expr leftExpr = OR_expr();
-
-            switch (currentToken.Tipo)
-            {
-                case TokenType.ASSIGNMENT:
-                case TokenType.ADDITION_ASSIGNMENT:
-                case TokenType.SUBSTRACTION_ASSIGNMENT:
-                case TokenType.MULTIPLICATION_ASSIGNMENT:
-                case TokenType.DIVISION_ASSIGNMENT:
-                    return assign_exprP(leftExpr);
-                default:
-                    return leftExpr;
-            }
+            return assign_exprP(leftExpr);
         }
 
         Expr assign_exprP(Expr id)
@@ -1044,155 +1095,86 @@ namespace Syntax
 
                     Expr assignvalue = OR_expr();
                     AssignExpr assignexpr = new AssignExpr(id, assignvalue);
-
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.ASSIGNMENT:
-                        case TokenType.ADDITION_ASSIGNMENT:
-                        case TokenType.SUBSTRACTION_ASSIGNMENT:
-                        case TokenType.MULTIPLICATION_ASSIGNMENT:
-                        case TokenType.DIVISION_ASSIGNMENT:
-                            return assign_exprP(assignexpr);
-                        default:
-                            return assignexpr;
-                    }
+                    return assign_exprP(assignexpr);
 
                 case TokenType.ADDITION_ASSIGNMENT:
                     match(TokenType.ADDITION_ASSIGNMENT);
 
                     Expr addassignvalue = OR_expr();
                     AdditionAssignExpr additionassignexpr = new AdditionAssignExpr(id, addassignvalue);
-
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.ASSIGNMENT:
-                        case TokenType.ADDITION_ASSIGNMENT:
-                        case TokenType.SUBSTRACTION_ASSIGNMENT:
-                        case TokenType.MULTIPLICATION_ASSIGNMENT:
-                        case TokenType.DIVISION_ASSIGNMENT:
-                            return assign_exprP(additionassignexpr);
-                        default:
-                            return additionassignexpr;
-                    }
+                    return assign_exprP(additionassignexpr);
 
                 case TokenType.SUBSTRACTION_ASSIGNMENT:
                     match(TokenType.SUBSTRACTION_ASSIGNMENT);
 
                     Expr subassignvalue = OR_expr();
                     SubstractionAssignExpr substractionassignexpr = new SubstractionAssignExpr(id, subassignvalue);
-
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.ASSIGNMENT:
-                        case TokenType.ADDITION_ASSIGNMENT:
-                        case TokenType.SUBSTRACTION_ASSIGNMENT:
-                        case TokenType.MULTIPLICATION_ASSIGNMENT:
-                        case TokenType.DIVISION_ASSIGNMENT:
-                            return assign_exprP(substractionassignexpr);
-                        default:
-                            return substractionassignexpr;
-                    }
+                    return assign_exprP(substractionassignexpr);
 
                 case TokenType.MULTIPLICATION_ASSIGNMENT:
                     match(TokenType.MULTIPLICATION_ASSIGNMENT);
 
                     Expr mulassignvalue = OR_expr();
                     MultiplicationAssignExpr multiplicationassignexpr = new MultiplicationAssignExpr(id, mulassignvalue);
-                    
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.ASSIGNMENT:
-                        case TokenType.ADDITION_ASSIGNMENT:
-                        case TokenType.SUBSTRACTION_ASSIGNMENT:
-                        case TokenType.MULTIPLICATION_ASSIGNMENT:
-                        case TokenType.DIVISION_ASSIGNMENT:
-                            return assign_exprP(multiplicationassignexpr);
-                        default:
-                            return multiplicationassignexpr;
-                    }
+                    return assign_exprP(multiplicationassignexpr);                     
 
                 case TokenType.DIVISION_ASSIGNMENT:
                     match(TokenType.DIVISION_ASSIGNMENT);
 
                     Expr divassignvalue = OR_expr();
                     DivisionAssignExpr divisionassignexpr = new DivisionAssignExpr(id, divassignvalue);
-
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.ASSIGNMENT:
-                        case TokenType.ADDITION_ASSIGNMENT:
-                        case TokenType.SUBSTRACTION_ASSIGNMENT:
-                        case TokenType.MULTIPLICATION_ASSIGNMENT:
-                        case TokenType.DIVISION_ASSIGNMENT:
-                            return assign_exprP(divisionassignexpr);
-                        default:
-                            return divisionassignexpr;
-                    }
+                    return assign_exprP(divisionassignexpr);                    
 
                 default:
-                    throw new Exception("Error en la expresion assign linea: " + lex.line + " columna: " + lex.column + " currenttoken -> " + currentToken.Lexema);
-            }
-            //null
+                    return id;//null
+            }            
         }
         
         Expr OR_expr()
         {
             Expr leftExpr = AND_expr();
-
-            if (peek(TokenType.OR))
-                return OR_exprP(leftExpr);
-            else
-                return leftExpr;
+            return OR_exprP(leftExpr);
         }
         
         Expr OR_exprP(Expr leftExpr)
-        {            
-            match(TokenType.OR); 
-            
-            Expr rightor = AND_expr();
-            OrExpr orexpr = new OrExpr(leftExpr, rightor);
-
+        {
             if (peek(TokenType.OR))
+            {
+                match(TokenType.OR);
+
+                Expr rightor = AND_expr();
+                OrExpr orexpr = new OrExpr(leftExpr, rightor);
                 return OR_exprP(orexpr);
+            }
             else
-                return orexpr;
+                return leftExpr;//null
         }
         
         Expr AND_expr()
         {
             Expr leftExpr = equal_expr(); 
-            
-            if (peek(TokenType.AND))
-                return AND_exprP(leftExpr);
-            else
-                return leftExpr;
+            return AND_exprP(leftExpr);
         }
 
         Expr AND_exprP(Expr leftExpr)
         {
-            match(TokenType.AND);
+            if (peek(TokenType.AND))
+            {
+                match(TokenType.AND);
 
-            Expr rightand = equal_expr();
-            AndExpr andexpr = new AndExpr(leftExpr, rightand);
-
-            if (peek(TokenType.AND))           
+                Expr rightand = equal_expr();
+                AndExpr andexpr = new AndExpr(leftExpr, rightand);
+                
                 return AND_exprP(andexpr);
+            }
             else
-                return andexpr;
+                return leftExpr;//null
         }
 
         Expr equal_expr()
         {
             Expr leftExpr = relation_expr();
-
-            switch (currentToken.Tipo)
-            {
-                case TokenType.EQUAL:
-                case TokenType.NOTEQUAL:
-                    return equal_exprP(leftExpr);
-                default:
-                    return leftExpr;
-            }
+            return equal_exprP(leftExpr);
         }
 
         Expr equal_exprP(Expr leftExpr)
@@ -1204,52 +1186,24 @@ namespace Syntax
 
                     Expr rightequal = relation_expr();
                     EqualExpr equalexpr = new EqualExpr(leftExpr, rightequal);
-
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.EQUAL:
-                        case TokenType.NOTEQUAL:
-                            return equal_exprP(equalexpr);
-                        default:
-                            return equalexpr;
-                    }
-
+                    return equal_exprP(equalexpr);
 
                 case TokenType.NOTEQUAL:
                     match(TokenType.NOTEQUAL);
 
                     Expr rightnotequal = relation_expr();
                     NotEqualExpr notequalexpr = new NotEqualExpr(leftExpr, rightnotequal);
-
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.EQUAL:
-                        case TokenType.NOTEQUAL:
-                            return equal_exprP(notequalexpr);
-                        default:
-                            return notequalexpr;
-                    }
+                    return equal_exprP(notequalexpr);                    
 
                 default:
-                    throw new Exception("Error en la expresion relation linea: " + lex.line + " columna: " + lex.column + " currenttoken -> " + currentToken.Lexema);
+                    return leftExpr;//null
             }
-            //null
         }
 
         Expr relation_expr()
         {
             Expr leftExpr = additive_expr();
-
-            switch (currentToken.Tipo)
-            {
-                case TokenType.GREATER:
-                case TokenType.GREATER_EQUAL:
-                case TokenType.LESS:
-                case TokenType.LESS_EQUAL:
-                    return relation_exprP(leftExpr);
-                default:
-                    return leftExpr;
-            }
+            return relation_exprP(leftExpr);
         }
 
         Expr relation_exprP(Expr leftExpr)
@@ -1261,87 +1215,38 @@ namespace Syntax
 
                     Expr rightgreater = additive_expr();
                     GreaterExpr greaterexpr = new GreaterExpr(leftExpr, rightgreater);
-
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.GREATER:
-                        case TokenType.GREATER_EQUAL:
-                        case TokenType.LESS:
-                        case TokenType.LESS_EQUAL:
-                            return relation_exprP(greaterexpr);
-                        default:
-                            return greaterexpr;
-                    }
+                    return relation_exprP(greaterexpr);                    
 
                 case TokenType.GREATER_EQUAL:
                     match(TokenType.GREATER_EQUAL);
 
                     Expr rightgreaterequal = additive_expr();
                     GreaterEqualExpr greaterequalexpr = new GreaterEqualExpr(leftExpr, rightgreaterequal);
-
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.GREATER:
-                        case TokenType.GREATER_EQUAL:
-                        case TokenType.LESS:
-                        case TokenType.LESS_EQUAL:
-                            return relation_exprP(greaterequalexpr);
-                        default:
-                            return greaterequalexpr;
-                    }
+                    return relation_exprP(greaterequalexpr);                     
 
                 case TokenType.LESS:
                     match(TokenType.LESS);
 
                     Expr rightless = additive_expr();
                     LessExpr lessexpr = new LessExpr(leftExpr, rightless);
-
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.GREATER:
-                        case TokenType.GREATER_EQUAL:
-                        case TokenType.LESS:
-                        case TokenType.LESS_EQUAL:
-                            return relation_exprP(lessexpr);
-                        default:
-                            return lessexpr;
-                    }
+                    return relation_exprP(lessexpr);
 
                 case TokenType.LESS_EQUAL:
                     match(TokenType.LESS_EQUAL);
 
                     Expr rightlessequal = additive_expr();
                     LessEqualExpr lessequalexpr = new LessEqualExpr(leftExpr, rightlessequal);
-
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.GREATER:
-                        case TokenType.GREATER_EQUAL:
-                        case TokenType.LESS:
-                        case TokenType.LESS_EQUAL:
-                            return relation_exprP(lessequalexpr);
-                        default:
-                            return lessequalexpr;
-                    }
+                    return relation_exprP(lessequalexpr);
 
                 default:
-                    throw new Exception("Error en la expresion relation linea: " + lex.line + " columna: " + lex.column + " currenttoken -> " + currentToken.Lexema);
+                    return leftExpr;//null
             }
-            //null
         }
         
         Expr additive_expr()
         {
             Expr leftExpr = multiplicative_expr();
-
-            switch (currentToken.Tipo)
-            {
-                case TokenType.ADDITION:
-                case TokenType.SUBSTRACTION:
-                    return additive_exprP(leftExpr);
-                default:
-                    return leftExpr;
-            }
+            return additive_exprP(leftExpr);            
         }
 
         Expr additive_exprP(Expr leftExpr)
@@ -1352,51 +1257,24 @@ namespace Syntax
                     
                     Expr rightadd = multiplicative_expr();
                     AdditionExpr additionexpr = new AdditionExpr(leftExpr, rightadd);
-
-                    switch(currentToken.Tipo)
-                    {
-                        case TokenType.ADDITION:
-                        case TokenType.SUBSTRACTION:
-                            return additive_exprP(additionexpr);
-                        default:
-                            return additionexpr;
-                    }
+                    return additive_exprP(additionexpr);                    
 
                 case TokenType.SUBSTRACTION:
                     match(TokenType.SUBSTRACTION);
 
                     Expr rightsub = multiplicative_expr();
                     SubstractionExpr substractionexpr = new SubstractionExpr(leftExpr, rightsub);
-
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.ADDITION:
-                        case TokenType.SUBSTRACTION:
-                            return additive_exprP(substractionexpr);
-                        default:
-                            return substractionexpr;
-                    }
+                    return additive_exprP(substractionexpr);                    
 
                 default:
-                    throw new Exception("Error en la expresion additive linea: " + lex.line + " columna: " + lex.column + " currenttoken -> " + currentToken.Lexema);
-            }
-            //null
+                    return leftExpr;//null
+            }            
         }
 
         Expr multiplicative_expr()//E.node = multiplicative_expr(unary_expr())
         {
             Expr leftExpr = unary_expr();//T
-
-            switch(currentToken.Tipo)
-            {
-                case TokenType.MULTIPLICATION:
-                case TokenType.DIVISION:
-                case TokenType.REMAINDER:
-                    return multiplicative_exprP(leftExpr);//E'
-                
-                default:
-                    return leftExpr;
-            }
+            return multiplicative_exprP(leftExpr);//E'            
         }
 
         Expr multiplicative_exprP(Expr leftExpr)//E'
@@ -1408,53 +1286,25 @@ namespace Syntax
                     
                     Expr rightmul = unary_expr();
                     MultiplicationExpr multiplicationexpr = new MultiplicationExpr(leftExpr, rightmul);
-
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.MULTIPLICATION:
-                        case TokenType.DIVISION:
-                        case TokenType.REMAINDER:
-                            return multiplicative_exprP(multiplicationexpr);
-                        default:
-                            return multiplicationexpr;
-                    }
+                    return multiplicative_exprP(multiplicationexpr);                    
 
                 case TokenType.DIVISION:
                     match(TokenType.DIVISION);
 
                     Expr rightdiv = unary_expr();
                     DivisionExpr divisionexpr = new DivisionExpr(leftExpr, rightdiv);
-
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.MULTIPLICATION:
-                        case TokenType.DIVISION:
-                        case TokenType.REMAINDER:
-                            return multiplicative_exprP(divisionexpr);
-                        default:
-                            return divisionexpr;
-                    }
+                    return multiplicative_exprP(divisionexpr);                    
 
                 case TokenType.REMAINDER:
                     match(TokenType.REMAINDER);
 
                     Expr rightmod = unary_expr();
                     RemainderExpr remainderexpr = new RemainderExpr(leftExpr, rightmod);
-                    
-                    switch (currentToken.Tipo)
-                    {
-                        case TokenType.MULTIPLICATION:
-                        case TokenType.DIVISION:
-                        case TokenType.REMAINDER:
-                            return multiplicative_exprP(remainderexpr);
-                        default:
-                            return remainderexpr;
-                    }
+                    return multiplicative_exprP(remainderexpr);                    
 
                 default:
-                    throw new Exception("Error en la expresion multiplicative linea: " + lex.line + " columna: " + lex.column + " currenttoken -> " + currentToken.Lexema);
-            }
-            //null
+                    return leftExpr;//null
+            }            
         }
 
         Expr unary_expr()
@@ -1463,22 +1313,22 @@ namespace Syntax
             {
                 case TokenType.INCREMENT:
                     match(TokenType.INCREMENT); 
-                    Expr preincrementthis = postfix_expr();
 
+                    Expr preincrementthis = postfix_expr();
                     PreIncrementExpr preincrement = new PreIncrementExpr(preincrementthis);
                     return preincrement;
                 
                 case TokenType.DECREMENT:
                     match(TokenType.DECREMENT); 
-                    Expr predecrementthis = postfix_expr();
 
+                    Expr predecrementthis = postfix_expr();
                     PreDecrementExpr predecrement = new PreDecrementExpr(predecrementthis);
                     return predecrement;
                 
                 case TokenType.NOT:
-                    match(TokenType.NOT); 
-                    Expr notthis = postfix_expr();
+                    match(TokenType.NOT);
 
+                    Expr notthis = postfix_expr();
                     NotExpr notexpr = new NotExpr(notthis);
                     return notexpr;
                 
@@ -1499,12 +1349,7 @@ namespace Syntax
                     case TokenType.LEFT_PARENTHESIS:
                     case TokenType.DOT:
                         ReferenceAccess postid = postId_expr(id);
-                        
-                        if (peek(TokenType.INCREMENT) || 
-                            peek(TokenType.DECREMENT))
-                            return postfix_exprP(postid);
-                        else
-                            return postid;
+                        return postfix_exprP(postid);
                     
                     case TokenType.INCREMENT:
                     case TokenType.DECREMENT:
@@ -1513,7 +1358,6 @@ namespace Syntax
                     default:
                         return id;
                 }
-                //postfix_exprP();
             }
             else
                 return primary_expr();
@@ -1544,8 +1388,21 @@ namespace Syntax
                     return miembroRegistro;
 
                 default:
-                    throw new Exception("Error en la expresion postId linea: " + lex.line + " columna: " + lex.column + " currenttoken -> " + currentToken.Lexema);
+                    throw new Exception("Error en la expresion postId linea: " + Lexer.line + " columna: " + Lexer.column + " currenttoken -> " + currentToken.Lexema);
             }            
+        }
+
+        void variable_arrayExpr(List<Expr> indexList)
+        {
+            if (peek("["))
+            {
+                match("[");
+                Expr expresion = expr();
+                indexList.Add(expresion);
+                match("]");
+                variable_arrayExpr(indexList);//arreglos multidimensionales
+            }
+            //null
         }
 
         void id_access(List<ReferenceAccess> memberslist)
@@ -1580,20 +1437,7 @@ namespace Syntax
             Id Id = new Id(currentToken.Lexema);
             match(TokenType.ID);
             return Id;
-        }
-
-        void variable_arrayExpr(List<Expr> indexList)
-        {
-            if (peek("["))
-            {
-                match("[");
-                Expr expresion = expr();
-                indexList.Add(expresion);
-                match("]");
-                variable_arrayExpr(indexList);//arreglos multidimensionales
-            }
-            //null
-        }
+        }        
 
         Expr postfix_exprP(Expr expresion)
         {
@@ -1610,9 +1454,8 @@ namespace Syntax
                     return postDecrement;
 
                 default:
-                    throw new Exception("Error en la expresion postfix linea: " + lex.line + " columna: " + lex.column + " currenttoken -> " + currentToken.Lexema);
-            }
-            //null
+                    return expresion;//null
+            }            
         }
         
         Expr primary_expr()
@@ -1654,7 +1497,7 @@ namespace Syntax
                     return expresion;
 
                 default:
-                    throw new Exception("Error en la expresion linea: " + lex.line + " columna: " + lex.column + " currenttoken -> " + currentToken.Lexema);
+                    throw new Exception("Error en la expresion linea: " + Lexer.line + " columna: " + Lexer.column + " currenttoken -> " + currentToken.Lexema);
             }
         }
 
@@ -1704,7 +1547,7 @@ namespace Syntax
                 if (currentToken.Tipo == type)
                     currentToken = lex.nextToken();
                 else
-                    throw new Exception("En la linea: " + lex.line + " columna: " + lex.column + " se esperaba \'" + token + "\' con id \'" + type + "\' token actual -> " + currentToken.Lexema);
+                    throw new Exception("En la linea: " + Lexer.line + " columna: " + Lexer.column + " se esperaba \'" + token + "\' con id \'" + type + "\' token actual -> " + currentToken.Lexema);
             }
             catch (Exception ex)
             {
@@ -1717,7 +1560,7 @@ namespace Syntax
             if (currentToken.Tipo == tokentype)
                 currentToken = lex.nextToken();
             else
-                throw new Exception("En la linea: " + lex.line + " columna: " + lex.column + " se esperaba \'" + tokentype + "\' token actual -> " + currentToken.Tipo);
+                throw new Exception("En la linea: " + Lexer.line + " columna: " + Lexer.column + " se esperaba \'" + tokentype + "\' token actual -> " + currentToken.Tipo);
         }
 
         bool peek(string token)
@@ -1730,7 +1573,7 @@ namespace Syntax
             }
             catch (Exception ex)
             {
-                throw new Exception("En la linea: " + lex.line + " columna: " + lex.column + " | Peek Token -> \'" + token + "\' " + ex.ToString());
+                throw new Exception("En la linea: " + Lexer.line + " columna: " + Lexer.column + " | Peek Token -> \'" + token + "\' " + ex.ToString());
             }
         }
 

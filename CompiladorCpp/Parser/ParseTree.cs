@@ -3,13 +3,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
+using Lexical;
+using Semantic;
+using Syntax;
+
 namespace SyntaxTree
 {
     #region tipo
 
     public abstract class Tipo
     {
-        public virtual bool esEquivalente(Tipo t){ return false; }
+        public abstract bool esEquivalente(Tipo t);
     }
 
     public class Entero : Tipo
@@ -52,79 +56,45 @@ namespace SyntaxTree
         }
     }
 
+    public class Void : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Void;
+        }
+    }
+
     public class Enumeracion : Tipo
     {
         public override bool esEquivalente(Tipo t)
         {
             return t is Enumeracion;
         }
-    }     
-
-    public class ListaCampos
-    {
-        public List<string> Campos;
-
-        public Dictionary<String, Tipo> tiposCampos;
-
-        public ListaCampos()
-        {
-            Campos = new List<string>();
-            tiposCampos = new Dictionary<string,Tipo>();
-        }
-    }
+    }         
 
     public class Registro : Tipo
     {
-        public ListaCampos CamposRegistro;
+        public Env entornoStruct;
 
-        public Registro(ListaCampos campos)
+        public Registro(Env entorno)
         {
-            CamposRegistro = campos;
+            entornoStruct = entorno;
         }
 
         public override bool esEquivalente(Tipo t)
         {
-            Registro r = (Registro)t;
-
-            if (CamposRegistro.Campos.Count == r.CamposRegistro.Campos.Count)
+            if (t is Registro)
             {
-                for (int i = 0; i < CamposRegistro.Campos.Count; i++)
+                Registro r = (Registro)t;
+
+                if (entornoStruct.tablaSimbolos.Count == r.entornoStruct.tablaSimbolos.Count)
                 {
-                    string miCampo = CamposRegistro.Campos[i];
-                    string otroCampo = r.CamposRegistro.Campos[i];
-
-                    if (!CamposRegistro.tiposCampos[miCampo].esEquivalente(r.CamposRegistro.tiposCampos[otroCampo]))
-                        return false;
-                }
-                return true;
-            }
-            else
-                return false;
-        }
-    }
-
-    public class Arreglo : Tipo
-    {
-        public List<int> Dimensiones;
-        public Tipo tipoArreglo;
-
-        public Arreglo(List<int> dimensiones, Tipo type)
-        {
-            Dimensiones = dimensiones;
-            tipoArreglo = type;
-        }
-
-        public override bool esEquivalente(Tipo t)
-        {
-            if (t is Arreglo)
-            {
-                Arreglo otroArreglo = (Arreglo)t;
-
-                if (otroArreglo.Dimensiones.Count == Dimensiones.Count)
-                {
-                    for (int i = 0; i < Dimensiones.Count; i++)
+                    for (int i = 0; i < entornoStruct.tablaSimbolos.Count; i++)
                     {
-                        if (Dimensiones[i] != otroArreglo.Dimensiones[i])
+                        Tipo miCampo = entornoStruct.tablaSimbolos.ElementAt(i).Value;
+                        Tipo otroCampo = r.entornoStruct.tablaSimbolos.ElementAt(i).Value;
+
+                        if (!(miCampo.esEquivalente(otroCampo)))
                             return false;
                     }
                     return true;
@@ -137,66 +107,240 @@ namespace SyntaxTree
         }
     }
 
+    public class Arreglo : Tipo
+    {
+        public Tipo tipoArreglo;
+        //public Expr size;
+        public int size;
+
+        public Arreglo(Tipo tipo, int tam)
+        {            
+            tipoArreglo = tipo;
+            size = tam;
+        }
+
+        public override bool esEquivalente(Tipo t)
+        {
+            if (t is Arreglo)
+            {
+                Arreglo array = (Arreglo)t;
+
+                if (!tipoArreglo.esEquivalente(array.tipoArreglo))
+                    return false;
+
+                return size == array.size;
+            }
+            else
+                return false;
+        }
+    }
+    
+    public class Funcion : Tipo
+    {
+        public Tipo tipoRetorno;
+        public Tipo Parametros;
+
+        public Funcion(Tipo retorno, Tipo parametros)
+        {
+            tipoRetorno = retorno;
+            Parametros = parametros;
+        }
+
+        public override bool esEquivalente(Tipo t)
+        {
+            if (t is Funcion)
+            {
+                Funcion func = (Funcion)t;
+
+                if (!tipoRetorno.esEquivalente(func.tipoRetorno))
+                    return false;
+
+                return Parametros.esEquivalente(func.Parametros);
+            }
+            else
+                return false;
+        }
+    }
+
+    public class Product : Tipo
+    {
+        public Tipo Type1, Type2;
+
+        public Product(Tipo type1, Tipo type2)
+        {
+            Type1 = type1;
+            Type2 = type2;
+        }
+
+        public override bool esEquivalente(Tipo t)
+        {
+            if (t is Product)
+            {
+                Product p = (Product)t;
+
+                if (!Type1.esEquivalente(p.Type1))
+                    return false;
+
+                if (!Type2.esEquivalente(p.Type2))
+                    return false;
+
+                return true;
+            }
+            else
+                return false;
+        }
+    }
+        
     #endregion
 
     #region program
-    
-    #region Sentence
-    
-    public abstract class Sentence
+
+    public class Node
+    {
+        public int lexline = -1;
+
+        public Node()
+        {
+            lexline = Lexer.line;            
+        }
+    }
+
+    #region Sentence    
+
+    public abstract class Sentence : Node
     {
         public void print()
         {
             Console.WriteLine(genCode());
         }
+
         public virtual string genCode()
         {
             return "Sentencia";
+        }
+
+        public abstract void validarSemantica();
+
+        protected Exception ErrorMessage(string message)
+        {
+            throw new Exception(message + " Linea:" + lexline);
+        }
+    }
+
+    public class SentenceSenquence : Sentence
+    {
+        public Sentence sent1, sent2;
+
+        public SentenceSenquence(Sentence s1, Sentence s2)
+        {
+            sent1 = s1;
+            sent2 = s2;
+        }
+
+        public override string genCode()
+        {
+            return sent1.genCode() + "\n" + sent2.genCode();
+        }
+
+        public override void validarSemantica()
+        {
+            sent1.validarSemantica();
+            sent2.validarSemantica();
         }
     }
 
     #region VariableDeclaration
 
-    public class VariableDeclaration : Sentence
+    public class VariableDeclarations : Sentence
     {
-        public Tipo tipo;
-        public List<VariableDeclarator> ids;
+        public VariableDeclaration variableDeclarations;
 
-        public VariableDeclaration(Tipo tipoVariable, List<VariableDeclarator> listaIds)
+        public VariableDeclarations(VariableDeclaration VarDeclarations)
         {
-            tipo = tipoVariable;
-            ids = listaIds;
+            variableDeclarations = VarDeclarations;
+        }
+
+        public override string genCode()
+        {
+            return variableDeclarations.genCode();
+        }
+
+        public override void validarSemantica()
+        {
+            variableDeclarations.validarSemantica();
         }
     }
 
-    public class VariableSubDeclaration : Sentence
-    {
-        public Tipo tipo;
-        public string Id;
+    public abstract class VariableDeclaration : Sentence { }
 
-        public VariableSubDeclaration(Tipo tipovar, string id)
+    public class VariableDeclarators : VariableDeclaration
+    {
+        public VariableDeclaration varDeclarator1, varDeclarator2;
+
+        public VariableDeclarators(VariableDeclaration vDec1, VariableDeclaration vDec2)
         {
-            tipo = tipovar;
-            Id = id;
+            varDeclarator1 = vDec1;
+            varDeclarator2 = vDec2;
+        }
+
+        public override string genCode()
+        {
+            return "VariableDeclarator, VariableDeclarator";
+        }
+
+        public override void validarSemantica()
+        {
+            varDeclarator1.validarSemantica();
+            varDeclarator2.validarSemantica();
         }
     }
 
-    public class VariableDeclarator : Sentence
+    public class VariableDeclarator : VariableDeclaration
     {
-        public string Id;
-        Initializers Inicializacion;
+        public VariableSubDeclarator declaration;
+        public Initializers initialization;
 
-        public VariableDeclarator(string id, Initializers inicializacion)
+        public VariableDeclarator(VariableSubDeclarator dec, Initializers init)
         {
-            Id = id;
-            Inicializacion = inicializacion;
+            declaration = dec;
+            initialization = init;
+        }
+
+        public override string genCode()
+        {
+            if (initialization == null)
+                return "VariableDeclarator";
+            else
+                return "VariableDeclarator = VariableInitializer";
+        }
+
+        public override void validarSemantica()
+        {
+            if (initialization != null)
+            {
+                if (!declaration.tipo.esEquivalente(initialization.validarSemantico()))
+                    throw ErrorMessage("La inicializacion de la variable es incorrecta.");
+            }
+        }
+    }
+    
+    public class VariableSubDeclarator
+    {
+        public Tipo tipo;
+        public string id;
+
+        public VariableSubDeclarator(Tipo typevar, string idvar)
+        {
+            tipo = typevar;
+            id = idvar;
         }
     }
 
     #region initializers
 
-    public abstract class Initializers 
+    public abstract class Initializers
     {
+        public abstract Tipo validarSemantico();
     }
 
     public class VariableInitializer : Initializers
@@ -206,6 +350,11 @@ namespace SyntaxTree
         public VariableInitializer(Expr expresion)
         {
             Expresion = expresion;
+        }        
+
+        public override Tipo validarSemantico()
+        {
+            return Expresion.validarSemantico();
         }
     }
 
@@ -217,61 +366,124 @@ namespace SyntaxTree
         {
             initializerList = initializersList;
         }
-    }
 
-    #endregion
-
-    #endregion
-
-    #region functionDefinition
-    
-    public class FuncionDefinition : Sentence
-    {
-        List<Product> Parametros;
-        Statement CompoundStatement;
-        string funcionId;
-        Tipo tipoRetorno;
-        
-            public FuncionDefinition(List<Product> parametros, Statement CompoundStmnt, string id, Tipo retorno)
+        public override Tipo validarSemantico()
         {
-            Parametros = parametros;
-            CompoundStatement = CompoundStmnt;
-            funcionId = id;
-            tipoRetorno = retorno;
+            Tipo t0 = validarSemanticoHelper();
+
+            for (int x = 1; x < initializerList.Count; x++)
+            {
+                Tipo t = initializerList[x].validarSemantico();
+
+                if (!t0.esEquivalente(t))
+                    throw new Exception("Inicializacion incorrecta de arreglo.");
+            }
+
+            return t0;
         }
-    }
 
-    public class Product
-    {
-        Tipo tipoParametro;
-        string IdParametro;
-
-        public Product(Tipo tipo,string idParametro)
+        public Tipo validarSemanticoHelper()
         {
-            tipoParametro = tipo;
-            IdParametro = idParametro;
+            Tipo tipoArreglo;
+
+            if (initializerList[0] is VariableInitializer)
+            {
+                VariableInitializer vInit = (VariableInitializer)initializerList[0];
+
+                tipoArreglo = vInit.validarSemantico();
+
+                return tipoArreglo;
+            }
+            else if (initializerList[0] is VariableInitializerList)
+            {
+                VariableInitializerList vList = (VariableInitializerList)initializerList[0];
+
+                tipoArreglo = vList.validarSemantico();
+
+                return new Arreglo(tipoArreglo, vList.initializerList.Count);
+            }
+            else
+                throw new Exception("Error en la inicializacion, tipo distinto de initializer??.");
         }
     }    
 
     #endregion
-    
+
+    #endregion
+
+    #region FunctionDefinition
+
+    public class FuntionDefinition : Sentence
+    {
+        public Env entornoLocal;
+        public string idFuncion;
+        public Tipo retorno;
+        public Statement compoundStatement;
+
+        public FuntionDefinition(string nombreFuncion, Tipo ret, Statement cpStmnt)
+        {
+            idFuncion = nombreFuncion;
+            retorno = ret;
+            compoundStatement = cpStmnt;
+            entornoLocal = Parser.entorno;
+        }
+
+        public override string genCode()
+        {
+            return "FunctionDefinition :" + idFuncion + compoundStatement.genCode();
+        }
+
+        public override void validarSemantica()
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    #endregion
+
     #endregion
 
     #region Statement
 
-    public abstract class Statement : Sentence
+    public class Statement : Sentence
     {
+        public Statement() { }
+        public static Statement Null = new Statement();
+        public static Statement Enclosing = Statement.Null;
+        
+        public override void validarSemantica()
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class StatementSequence : Statement
+    {
+        public Statement stmt1, stmt2;
+
+        public StatementSequence(Statement s1, Statement s2)
+        {
+            stmt1 = s1;
+            stmt2 = s2;
+        }
     }
 
     public class CompoundStatement : Statement
     {
-        public List<Statement> Sentencias;
+        public Statement Sentencias;
 
-        public CompoundStatement(List<Statement> listaSentencias)
+        public CompoundStatement(Statement listaSentencias)
         {
             Sentencias = listaSentencias;
         }
+
+        public override string genCode()
+        {
+            return "CompoundStatement";
+        }
     }
+
+    #region DeclarationStatement
 
     public class DeclarationStatement : Statement
     {
@@ -283,7 +495,91 @@ namespace SyntaxTree
             tipo = tipoVariable;
             ids = listaIds;
         }
+
+        public override string genCode()
+        {
+            return "DeclarationStatement";
+        }
     }
+    /*
+    #region VariableDeclaration
+
+    public class VariableDeclarationsStatement : Statement
+    {
+        public VariableDeclarationStatement variableDeclarations;
+
+        public VariableDeclarationsStatement(VariableDeclarationStatement VarDeclarations)
+        {
+            variableDeclarations = VarDeclarations;
+        }
+
+        public override string genCode()
+        {
+            return variableDeclarations.genCode();
+        }
+
+        public override void validarSemantica()
+        {
+            variableDeclarations.validarSemantica();
+        }
+    }
+
+    public abstract class VariableDeclarationStatement : Statement { }
+
+    public class VariableDeclaratorsStatement : VariableDeclarationStatement
+    {
+        public VariableDeclarationStatement varDeclarator1, varDeclarator2;
+
+        public VariableDeclaratorsStatement(VariableDeclarationStatement vDec1, VariableDeclarationStatement vDec2)
+        {
+            varDeclarator1 = vDec1;
+            varDeclarator2 = vDec2;
+        }
+
+        public override string genCode()
+        {
+            return "VariableDeclarator, VariableDeclarator";
+        }
+
+        public override void validarSemantica()
+        {
+            varDeclarator1.validarSemantica();
+            varDeclarator2.validarSemantica();
+        }
+    }
+
+    public class VariableDeclaratorStatement : VariableDeclarationStatement
+    {
+        public VariableSubDeclarator declaration;
+        public Initializers initialization;
+
+        public VariableDeclaratorStatement(VariableSubDeclarator dec, Initializers init)
+        {
+            declaration = dec;
+            initialization = init;
+        }
+
+        public override string genCode()
+        {
+            if (initialization == null)
+                return "VariableDeclarator";
+            else
+                return "VariableDeclarator = VariableInitializer";
+        }
+
+        public override void validarSemantica()
+        {
+            if (initialization != null)
+            {
+                if (!declaration.tipo.esEquivalente(initialization.validarSemantico()))
+                    throw ErrorMessage("La inicializacion de la variable es incorrecta.");
+            }
+        }
+    }    
+    
+    #endregion
+    */
+    #endregion
 
     public class ExpressionStatement : Statement
     {
@@ -293,40 +589,115 @@ namespace SyntaxTree
         {
             expresion = expr;
         }
+
+        public override string genCode()
+        {
+            return "ExpressionStatement";
+        }
     }
 
     public class IfStatement : Statement
     {
-        Statement Expresion;
-        Statement BloqueVerdadero, BloqueFalso;
+        public Expr condicion;
+        public Statement BloqueVerdadero;
 
-        public IfStatement(Statement expresion, Statement bloqueTrue, Statement bloqueFalse)
+        public IfStatement(Expr cond, Statement bloqueTrue)
         {
-            Expresion = expresion;
+            condicion = cond;
+            BloqueVerdadero = bloqueTrue;
+        }
+
+        public override string genCode()
+        {
+            return "IfStatement";
+        }
+
+        public override void  validarSemantica()
+        {
+            Tipo t = condicion.validarSemantico();
+            if (!(t is Entero || t is Flotante || t is Booleano))
+                throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico.");
+
+            BloqueVerdadero.validarSemantica();
+        }
+    }
+
+    public class IfElseStatement : Statement
+    {
+        public Expr condicion;
+        public Statement BloqueVerdadero;
+        public Statement BloqueFalso;
+
+        public IfElseStatement(Expr cond, Statement bloqueTrue, Statement bloqueFalse)
+        {
+            condicion = cond;
             BloqueVerdadero = bloqueTrue;
             BloqueFalso = bloqueFalse;
+        }
+
+        public override string genCode()
+        {
+            return "IfElseStatement";
+        }
+
+        public override void validarSemantica()
+        {
+            Tipo t = condicion.validarSemantico();
+            if (!(t is Entero || t is Flotante || t is Booleano))
+                throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico.");
+
+            BloqueVerdadero.validarSemantica();
+            BloqueFalso.validarSemantica();
         }
     }
 
     public class DoWhileStatement : Statement
     {
-        public Statement expresion, compoundStatement;
+        public Expr expresion;
+        public Statement compoundStatement;
 
-        public DoWhileStatement(Statement expr, Statement cpStmnt)
+        public DoWhileStatement(Expr expr, Statement cpStmnt)
         {
             expresion = expr;
             compoundStatement = cpStmnt;
+        }
+
+        public override string genCode()
+        {
+            return "DoWhileStatement";
+        }
+
+        public override void validarSemantica()
+        {
+            Tipo t = expresion.validarSemantico();
+
+            if (!(t is Entero || t is Flotante || t is Booleano))
+                throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico.");
         }
     }
 
     public class WhileStatement : Statement
     {
-        public Statement expresion, compoundstatement;
+        public Expr expresion;
+        public Statement compoundstatement;
 
-        public WhileStatement(Statement expr, Statement cpStmnt)
+        public WhileStatement(Expr expr, Statement cpStmnt)
         {
             expresion = expr;
             compoundstatement = cpStmnt;
+        }
+
+        public override string genCode()
+        {
+            return "WhileStatement";
+        }
+
+        public override void validarSemantica()
+        {
+            Tipo t = expresion.validarSemantico();
+
+            if (!(t is Entero || t is Flotante || t is Booleano))
+                throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico.");
         }
     }
 
@@ -341,19 +712,59 @@ namespace SyntaxTree
             forIteration = forIter;
             CompoundStatement = cpStmnt;
         }
+
+        public override string genCode()
+        {
+            return "ForStatement";
+        }
+
+        public override void validarSemantica()
+        {
+            throw new NotImplementedException();
+        }
     }
 
     public class ContinueStatement : Statement
     {
-        public ContinueStatement()
+        public Statement stmt;
+
+        public ContinueStatement() { }
+
+        public override string genCode()
         {
+            return "ContinueStatement";
+        }
+
+        public override void validarSemantica()
+        {
+            /*if (Statement.Enclosing == null)
+                throw new Exception("Continue fuera de ciclo. Linea:" + lexline);
+            else
+                stmt = Statement.Enclosing;*/
+            throw new NotImplementedException();
         }
     }
 
     public class BreakStatement : Statement
     {
+        public Statement stmt;
+
         public BreakStatement()
+        {            
+        }
+
+        public override string genCode()
         {
+            return "BreakStatement";
+        }
+
+        public override void validarSemantica()
+        {
+            /*if (Statement.Enclosing == null)
+                throw new Exception("Break fuera de ciclo. Linea:" + lexline);
+            else
+                stmt = Statement.Enclosing;*/
+            throw new NotImplementedException();
         }
     }
 
@@ -365,6 +776,16 @@ namespace SyntaxTree
         {
             expresion = expr;
         }
+
+        public override string genCode()
+        {
+            return "ReturnStatement";
+        }
+
+        public override void validarSemantica()
+        {
+            throw new NotImplementedException();
+        }
     }
 
     #endregion
@@ -373,24 +794,42 @@ namespace SyntaxTree
 
     public class StructVariableDeclaration : Sentence
     {
-        string strId, strVarId;
+        public string strId, strVarId;
+        public Tipo tipo;
 
-        public StructVariableDeclaration(string strid,string strvarname)
+        public StructVariableDeclaration(string strid,string strvarname, Tipo tipostr)
         {
             strId = strid;
             strVarId = strvarname;
+            tipo = tipostr;
+        }
+
+        public override string genCode()
+        {
+            return "StructVariableDeclaration";
+        }
+
+        public override void validarSemantica()
+        {
+            if (!(tipo is Registro))
+                throw ErrorMessage("Tipo deberia ser de struct!");
         }
     }
 
     public class StructDeclaration : Sentence
-    {
-        string structName;
-        ListaCampos variables;
-
-        public StructDeclaration(string strName, ListaCampos vars)
+    {        
+        public StructDeclaration()
         {
-            structName = strName;
-            variables = vars;
+        }
+
+        public override string genCode()
+        {
+            return "StructDeclaration";
+        }
+
+        public override void validarSemantica()
+        {
+            
         }
     }
 
@@ -402,6 +841,11 @@ namespace SyntaxTree
         {
             strId = strid;
             strVarId = strvarname;
+        }
+
+        public override string genCode()
+        {
+            return "StructVariableDeclaration";
         }
     }
 
@@ -419,6 +863,16 @@ namespace SyntaxTree
             enumId = id;
             variables = vars;
         }
+
+        public override string genCode()
+        {
+            return "EnumerationDeclaration";
+        }
+
+        public override void validarSemantica()
+        {
+            throw new NotImplementedException();
+        }
     }
 
     public class EnumerationVariableDeclaration : Sentence
@@ -430,24 +884,52 @@ namespace SyntaxTree
             enumerationName = enumName;
             enumerationVarName = enumVarName;
         }
+
+        public override string genCode()
+        {
+            return "EnumerationVariableDeclaration";
+        }
+
+        public override void validarSemantica()
+        {
+            throw new NotImplementedException();
+        }
     }
 
     #endregion
 
     #endregion
 
-
     #region expresiones
 
-    public abstract class Expr
+    public class Expr : Node
     {
+
+        protected Env entornoActual;
+
+        public Expr()
+        {
+            entornoActual = Parser.entorno;
+        }
+
         public void print()
         {
             Console.WriteLine(genCode());
         }
-        public virtual string genCode() 
+
+        public virtual string genCode()
         {
             return "Expr";
+        }
+
+        public virtual Tipo validarSemantico()
+        {
+            throw new NotImplementedException("Base Expr class.");
+        }
+
+        protected Exception ErrorMessage(string message)
+        {
+            throw new Exception(message + " Linea:" + lexline);
         }
     }
 
@@ -455,16 +937,23 @@ namespace SyntaxTree
 
     public class SequenceExpr : Expr
     {
-        public List<Expr> listaExpresiones;
+        public Expr  expr1, expr2;
 
-        public SequenceExpr(List<Expr> expresiones)
+        public SequenceExpr(Expr exp1, Expr exp2)
         {
-            listaExpresiones = expresiones;
+            expr1 = exp1;
+            expr2 = exp2;
         }
 
         public override string genCode()
         {
             return "SequenceExpr";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            expr1.validarSemantico();
+            return expr2.validarSemantico();            
         }
     }
 
@@ -486,6 +975,15 @@ namespace SyntaxTree
         {
             return "AssignExpr";
         }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t = Id.validarSemantico();
+            if (t.esEquivalente(value.validarSemantico()))
+                return t;
+            
+            throw ErrorMessage("Los tipos de variable y de valor/expresion no son equivalentes.");
+        }
     }
 
     public class AdditionAssignExpr : AssignExpr
@@ -495,6 +993,15 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "AdditionAssignExpr";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t = Id.validarSemantico();
+            if (t.esEquivalente(value.validarSemantico()))
+                return t;
+            
+            throw ErrorMessage("Los tipos de variable y de valor/expresion no son equivalentes.");
         }
     }
 
@@ -506,6 +1013,15 @@ namespace SyntaxTree
         {
             return "SubstractionAssignExpr";
         }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t = Id.validarSemantico();
+            if (t.esEquivalente(value.validarSemantico()))
+                return t;
+            
+            throw ErrorMessage("Los tipos de variable y de valor/expresion no son equivalentes.");
+        }
     }
 
     public class MultiplicationAssignExpr : AssignExpr
@@ -516,6 +1032,15 @@ namespace SyntaxTree
         {
             return "MultiplicationAssignExpr";
         }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t = Id.validarSemantico();
+            if (t.esEquivalente(value.validarSemantico()))
+                return t;            
+            
+            throw ErrorMessage("Los tipos de variable y de valor/expresion no son equivalentes.");
+        }
     }
 
     public class DivisionAssignExpr : AssignExpr
@@ -525,6 +1050,15 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "DivisionAssignExpr";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t = Id.validarSemantico();
+            if (t.esEquivalente(value.validarSemantico()))
+                return t;
+            
+            throw ErrorMessage("Los tipos de variable y de valor/expresion no son equivalentes.");
         }
     }
 
@@ -558,6 +1092,23 @@ namespace SyntaxTree
         {
             return "orExpr";
         }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_izq = leftExpr.validarSemantico();
+            Tipo t_der = rightExpr.validarSemantico();
+
+            if (t_izq is Booleano && t_der is Booleano)            
+                return t_der;
+
+            if (t_izq is Entero && t_der is Entero)
+                return t_der;
+
+            if (t_izq is Flotante && t_der is Flotante)
+                return t_der;
+            
+            throw ErrorMessage("Deberian ser tipos booleano/entero/flotante las dos expresiones del OR.");
+        }
     }
 
     #endregion
@@ -571,6 +1122,23 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "andExpr";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_izq = leftExpr.validarSemantico();
+            Tipo t_der = rightExpr.validarSemantico();
+
+            if (t_izq is Booleano && t_der is Booleano)
+                return t_der;
+
+            if (t_izq is Entero && t_der is Entero)
+                return t_der;
+
+            if (t_izq is Flotante && t_der is Flotante)
+                return t_der;
+
+            throw ErrorMessage("Deberian ser tipos booleano/entero/flotante las dos expresiones del AND.");
         }
     }
 
@@ -586,6 +1154,29 @@ namespace SyntaxTree
         {
             return "equalExpr";
         }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_izq = leftExpr.validarSemantico();
+            Tipo t_der = rightExpr.validarSemantico();
+
+            if (t_izq is Booleano && t_der is Booleano)
+                return t_der;
+
+            if (t_izq is Entero && t_der is Entero)
+                return t_der;
+
+            if (t_izq is Flotante && t_der is Flotante)
+                return t_der;
+
+            if (t_izq is Cadena && t_der is Cadena)
+                return t_der;
+
+            if (t_der is Caracter && t_der is Caracter)
+                return t_der;
+
+            throw ErrorMessage("Deberian ser tipos booleano/entero/flotante/cadena/caracter las dos expresiones del EQUAL.");
+        }
     }
 
     public class NotEqualExpr : BinaryExpr
@@ -595,6 +1186,29 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "Equal";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_izq = leftExpr.validarSemantico();
+            Tipo t_der = rightExpr.validarSemantico();
+
+            if (t_izq is Booleano && t_der is Booleano)
+                return t_der;
+
+            if (t_izq is Entero && t_der is Entero)
+                return t_der;
+
+            if (t_izq is Flotante && t_der is Flotante)
+                return t_der;
+
+            if (t_izq is Cadena && t_der is Cadena)
+                return t_der;
+
+            if (t_der is Caracter && t_der is Caracter)
+                return t_der;
+
+            throw ErrorMessage("Deberian ser tipos booleano/entero/flotante/cadena/caracter las dos expresiones del NOT EQUAL.");
         }
     }
     
@@ -610,6 +1224,29 @@ namespace SyntaxTree
         {
             return "GreaterExpr";
         }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_izq = leftExpr.validarSemantico();
+            Tipo t_der = rightExpr.validarSemantico();
+
+            if (t_izq is Booleano && t_der is Booleano)
+                return t_der;
+
+            if (t_izq is Entero && t_der is Entero)
+                return t_der;
+
+            if (t_izq is Flotante && t_der is Flotante)
+                return t_der;
+
+            if (t_izq is Cadena && t_der is Cadena)
+                return t_der;
+
+            if (t_der is Caracter && t_der is Caracter)
+                return t_der;
+
+            throw ErrorMessage("Deberian ser tipos booleano/entero/flotante/cadena/caracter las dos expresiones del GREATER THAN.");
+        }
     }
 
     public class GreaterEqualExpr : BinaryExpr
@@ -619,6 +1256,29 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "GreaterEqualExpr";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_izq = leftExpr.validarSemantico();
+            Tipo t_der = rightExpr.validarSemantico();
+
+            if (t_izq is Booleano && t_der is Booleano)
+                return t_der;
+
+            if (t_izq is Entero && t_der is Entero)
+                return t_der;
+
+            if (t_izq is Flotante && t_der is Flotante)
+                return t_der;
+
+            if (t_izq is Cadena && t_der is Cadena)
+                return t_der;
+
+            if (t_der is Caracter && t_der is Caracter)
+                return t_der;
+
+            throw ErrorMessage("Deberian ser tipos booleano/entero/flotante/cadena/caracter las dos expresiones del GREATER EQUAL THAN.");
         }
     }
 
@@ -630,6 +1290,29 @@ namespace SyntaxTree
         {
             return "LessExpr";
         }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_izq = leftExpr.validarSemantico();
+            Tipo t_der = rightExpr.validarSemantico();
+
+            if (t_izq is Booleano && t_der is Booleano)
+                return t_der;
+
+            if (t_izq is Entero && t_der is Entero)
+                return t_der;
+
+            if (t_izq is Flotante && t_der is Flotante)
+                return t_der;
+
+            if (t_izq is Cadena && t_der is Cadena)
+                return t_der;
+
+            if (t_der is Caracter && t_der is Caracter)
+                return t_der;
+
+            throw ErrorMessage("Deberian ser tipos booleano/entero/flotante/cadena/caracter las dos expresiones del LESS THAN.");
+        }
     }
 
     public class LessEqualExpr : BinaryExpr
@@ -639,6 +1322,29 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "LessEqualExpr";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_izq = leftExpr.validarSemantico();
+            Tipo t_der = rightExpr.validarSemantico();
+
+            if (t_izq is Booleano && t_der is Booleano)
+                return t_der;
+
+            if (t_izq is Entero && t_der is Entero)
+                return t_der;
+
+            if (t_izq is Flotante && t_der is Flotante)
+                return t_der;
+
+            if (t_izq is Cadena && t_der is Cadena)
+                return t_der;
+
+            if (t_der is Caracter && t_der is Caracter)
+                return t_der;
+
+            throw ErrorMessage("Deberian ser tipos booleano/entero/flotante/cadena/caracter las dos expresiones del LESS EQUAL THAN.");
         }
     }
 
@@ -654,6 +1360,23 @@ namespace SyntaxTree
         {
             return "additionExpr";
         }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_izq = leftExpr.validarSemantico();
+            Tipo t_der = rightExpr.validarSemantico();
+
+            if (t_izq is Entero && t_der is Entero)
+                return t_der;
+
+            if (t_izq is Flotante && t_der is Flotante)
+                return t_der;
+
+            if (t_izq is Cadena && t_der is Cadena)
+                return t_der;
+
+            throw ErrorMessage("Tipos invalidos en las expresiones del ADDITION.");
+        }
     }
 
     public class SubstractionExpr : BinaryExpr
@@ -663,6 +1386,20 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "SubstractionExpr";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_izq = leftExpr.validarSemantico();
+            Tipo t_der = rightExpr.validarSemantico();
+
+            if (t_izq is Entero && t_der is Entero)
+                return t_der;
+
+            if (t_izq is Flotante && t_der is Flotante)
+                return t_der;
+
+            throw ErrorMessage("Tipos invalidos en las expresiones del SUBSTRACTION.");
         }
     }
 
@@ -678,6 +1415,20 @@ namespace SyntaxTree
         {
             return "multiplicationExpr";
         }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_izq = leftExpr.validarSemantico();
+            Tipo t_der = rightExpr.validarSemantico();
+
+            if (t_izq is Entero && t_der is Entero)
+                return t_der;
+
+            if (t_izq is Flotante && t_der is Flotante)
+                return t_der;
+
+            throw ErrorMessage("Tipos invalidos en las expresiones del MULTIPLICATION.");
+        }
     }
 
     public class DivisionExpr : BinaryExpr
@@ -688,6 +1439,20 @@ namespace SyntaxTree
         {
             return "DivisionExpr";
         }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_izq = leftExpr.validarSemantico();
+            Tipo t_der = rightExpr.validarSemantico();
+
+            if (t_izq is Entero && t_der is Entero)
+                return t_der;
+
+            if (t_izq is Flotante && t_der is Flotante)
+                return t_der;
+
+            throw ErrorMessage("Tipos invalidos en las expresiones del DIVITION.");
+        }
     }
 
     public class RemainderExpr : BinaryExpr
@@ -697,6 +1462,20 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "RemainderExpr";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_izq = leftExpr.validarSemantico();
+            Tipo t_der = rightExpr.validarSemantico();
+
+            if (t_izq is Entero && t_der is Entero)
+                return t_der;
+
+            if (t_izq is Flotante && t_der is Flotante)
+                return t_der;
+
+            throw ErrorMessage("Tipos invalidos en las expresiones del REMAINDER.");
         }
     }
 
@@ -729,6 +1508,27 @@ namespace SyntaxTree
         {
             return "PreIncrementExpr";
         }
+
+        public override Tipo validarSemantico()
+        {
+            if (Id is ReferenceAccess)
+            {
+                ReferenceAccess refAcc = (ReferenceAccess)Id;
+
+                Tipo t_ref = refAcc.validarSemantico();
+
+                if (t_ref is Entero)
+                    return t_ref;
+                if (t_ref is Flotante)
+                    return t_ref;
+
+                throw ErrorMessage("Solo se permiten tipos numericos para PreIncrement.");
+            }
+            else
+            {
+                throw ErrorMessage("La expresion deberia ser de referencia para PreIncrement.");
+            }
+        }
     }
 
     public class PreDecrementExpr : UnaryExpr
@@ -739,6 +1539,28 @@ namespace SyntaxTree
         {
             return "PreDecrementExpr";
         }
+
+        public override Tipo validarSemantico()
+        {
+            if (Id is ReferenceAccess)
+            {
+                ReferenceAccess refAcc = (ReferenceAccess)Id;
+
+                Tipo t_ref = refAcc.validarSemantico();
+
+                if (t_ref is Entero)
+                    return t_ref;
+
+                if (t_ref is Flotante)
+                    return t_ref;
+
+                throw ErrorMessage("Solo se permiten tipos numericos para PreDecrement.");
+            }
+            else
+            {
+                throw ErrorMessage("La expresion deberia ser de referencia para PreDecrement.");
+            }
+        }
     }
 
     public class NotExpr : UnaryExpr
@@ -748,6 +1570,37 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "NotExpr";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            if (Id is ReferenceAccess)
+            {
+                ReferenceAccess refAcc = (ReferenceAccess)Id;
+
+                Tipo t_ref = refAcc.validarSemantico();
+
+                if (t_ref is Booleano)
+                    return t_ref;
+
+                if (t_ref is Entero)
+                    return t_ref;
+
+                if (t_ref is Flotante)
+                    return t_ref;
+
+                if (t_ref is Cadena)
+                    return t_ref;
+
+                if (t_ref is Caracter)
+                    return t_ref;
+
+                throw ErrorMessage("Solo se permiten tipos booleano/entero/flotante/cadena/caracter para Not.");
+            }
+            else
+            {
+                throw ErrorMessage("La expresion deberia ser de referencia para Not.");
+            }
         }
     }
 
@@ -767,7 +1620,7 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "PostfixExpr";
-        }
+        }        
     }
 
     public class PostIncrementExpr : PostfixExpr
@@ -777,6 +1630,28 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "PostIncrementExpr";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            if (Id is ReferenceAccess)
+            {
+                ReferenceAccess refAcc = (ReferenceAccess)Id;
+
+                Tipo t_ref = refAcc.validarSemantico();
+
+                if (t_ref is Flotante)
+                    return t_ref;
+
+                if (t_ref is Entero)
+                    return t_ref;
+
+                throw ErrorMessage("Solo se permiten tipos numericos para PostIncrement.");
+            }
+            else
+            {
+                throw ErrorMessage("La expresion deberia ser de referencia para PostIncrement.");
+            }
         }
     }
 
@@ -788,12 +1663,37 @@ namespace SyntaxTree
         {
             return "PostDecrementExpr";
         }
+
+        public override Tipo validarSemantico()
+        {
+            if (Id is ReferenceAccess)
+            {
+                ReferenceAccess refAcc = (ReferenceAccess)Id;
+
+                Tipo t_ref = refAcc.validarSemantico();
+
+                if (t_ref is Entero)
+                    return t_ref;
+
+                if (t_ref is Flotante)
+                    return t_ref;
+
+                throw ErrorMessage("Solo se permiten tipos numericos para PostDecrement.");
+            }
+            else
+            {
+                throw ErrorMessage("La expresion deberia ser de referencia para PostDecrement.");
+            }
+        }
     }
 
     #endregion    
 
-    #region terminales : id, enteroLiteral, realLiteral, booleanoLiteral, caracterLiteral, cadenaLiteral, miembroRegistro, indiceArreglo, functionCall    
+    #region terminales : literales basicas, referencias id, miembroRegistro, indiceArreglo, functionCall    
 
+    
+    #region literales tipos basicos: int float, char, bool, string
+    
     public class EnteroLiteral : Expr
     {
         public int value;
@@ -806,6 +1706,11 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "EnteroLiteral";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            return new Entero();
         }
     }
 
@@ -822,6 +1727,11 @@ namespace SyntaxTree
         {
             return "RealLiteral";
         }
+
+        public override Tipo validarSemantico()
+        {
+            return new Flotante();
+        }
     }
 
     public class BooleanoLiteral : Expr
@@ -836,6 +1746,11 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "BooleanoLiteral";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            return new Booleano();
         }
     }
 
@@ -852,6 +1767,11 @@ namespace SyntaxTree
         {
             return "CaracterLiteral";
         }
+
+        public override Tipo validarSemantico()
+        {
+            return new Caracter();
+        }
     }
 
     public class CadenaLiteral : Expr
@@ -867,9 +1787,17 @@ namespace SyntaxTree
         {
             return "CadenaLiteral";
         }
-    }    
 
-    public abstract class ReferenceAccess : Expr
+        public override Tipo validarSemantico()
+        {
+            return new Cadena();
+        }
+    }
+
+    #endregion
+
+
+    public class ReferenceAccess : Expr
     {
         public string lexeme;
 
@@ -888,6 +1816,11 @@ namespace SyntaxTree
         {
             return "Id";
         }
+
+        public override Tipo validarSemantico()
+        {
+            return entornoActual.get(lexeme);
+        }
     }
 
     public class MiembroRegistro : ReferenceAccess
@@ -903,20 +1836,79 @@ namespace SyntaxTree
         {
             return "MiembroRegistro";
         }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t_var = entornoActual.get(lexeme);
+
+            if (t_var is Registro)
+            {
+                Registro registro1 = (Registro)t_var;
+
+                if (registro1.entornoStruct.tablaSimbolos.ContainsKey(Members[0].lexeme))
+                {
+                    if (Members.Count > 1)
+                    {
+                        Tipo t_var2 = registro1.entornoStruct.get(Members[1].lexeme);
+
+                        if (t_var2 is Registro)
+                        {
+                            MiembroRegistro tmp = new MiembroRegistro(Members[1].lexeme, Members.GetRange(1, Members.Count));
+                            tmp.validarSemantico();
+                        }
+                        else
+                            throw ErrorMessage("El tipo " + lexeme + " no es de tipo struct.");
+                    }                    
+
+                    return registro1;
+                }
+                else
+                    throw ErrorMessage("El campo " + Members[0].lexeme + "No existe en " + this.lexeme + ".");
+            }
+            else
+                throw ErrorMessage("El tipo " + lexeme + " no es de tipo struct.");
+        }
     }
 
     public class IndiceArreglo : ReferenceAccess
     {
-        public List<Expr> IndexList;       
+        public List<Expr> IndexList;
 
         public IndiceArreglo(List<Expr> indexList, string id) : base(id)
         {
             IndexList = indexList;
+            lexeme = id;
         }
 
         public override string genCode()
         {
             return "IndiceArreglo";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            throw new NotImplementedException();
+            /*if (!Parser.tablaSimbolos.ContainsKey(this.lexeme))
+                throw new Exception("La variable" + this.lexeme + " no existe.");
+            
+            Tipo t_arreglo = Parser.tablaSimbolos[this.lexeme];
+
+            if (t_arreglo is Arreglo)
+            {
+                Arreglo arr = (Arreglo)t_arreglo;                
+
+                for (int i = 0; i < IndexList.Count; i++)
+                {
+                    if (!(IndexList[i].validarSemantico().esEquivalente(new Entero())) && !(IndexList[i].validarSemantico().esEquivalente(new Flotante())))
+                    {
+                        throw new Exception("Solo se permite indexacion con expresiones numericas");
+                    }
+                }
+
+                return arr.tipoArreglo;
+            }
+            else
+                throw new Exception(this.lexeme + " no es de tipo arreglo");*/
         }
     }
 
@@ -932,6 +1924,37 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "LlamadaFuncion";
+        }
+
+        public override Tipo validarSemantico()
+        {
+            throw new NotImplementedException();
+            /*Tipo t_var = Parser.tablaSimbolos[this.lexeme];
+
+            if (t_var == null)
+                throw new Exception("No existe la funcion " + this.lexeme);
+
+            if (t_var is Funcion)
+            {
+                Funcion func = (Funcion)t_var;
+
+                for (int i = 0; i < func.listaParametros.Count; i++)
+                {
+                    Product p = func.listaParametros[i];
+
+                    Tipo tipo = listaParametros[i].validarSemantico();
+
+
+                    if (!p.tipoParametro.esEquivalente(tipo))
+                    {
+                        throw new Exception("El tipo de parametro no es correcto");
+                    }
+                }
+
+                return func.tipoRetorno;
+            }
+            else
+                throw new Exception( this.lexeme +  " no es de tipo Funcion");*/
         }
     }
 

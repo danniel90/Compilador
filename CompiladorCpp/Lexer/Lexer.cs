@@ -71,7 +71,7 @@ namespace Lexical
         int caracterActual = 0;     
         SortedDictionary<string, TokenType> tblOperadores = new SortedDictionary<string, TokenType>();
         SortedDictionary<string, TokenType> tblPblReservadas = new SortedDictionary<string, TokenType>();
-        public int column = 1, line = 1;
+        public static int column = 1, line = 1;
         
         #endregion
 
