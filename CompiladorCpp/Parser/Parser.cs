@@ -33,7 +33,8 @@ namespace Syntax
             currentToken = lex.nextToken();
             Sentence sentencias = program();
 
-            sentencias.genCode();
+            Console.WriteLine(sentencias.genCode() + "\n\n");
+            sentencias.validarSemantica();
         }
 
         Sentence program()
@@ -324,7 +325,7 @@ namespace Syntax
                 entorno.put(id, funcion);//global
             }
 
-            Statement compoundStmnt = function_definition();
+            Sentence compoundStmnt = function_definition();
 
             FuntionDefinition funcDefinition = new FuntionDefinition(id, retorno, compoundStmnt);
             //FuncionDefinition funcDefinition = new FuncionDefinition(paramsTypeList, compoundStmnt, id, retorno);
@@ -420,29 +421,29 @@ namespace Syntax
 
         #region function_definition
         
-        Statement function_definition()
+        Sentence function_definition()
         {
             return compound_statement();
         }
 
-        Statement compound_statement()
+        Sentence compound_statement()
         {
             match("{");
-            Statement stList = statement_list();
+            Sentence stList = statement_list();
             match("}");
 
             CompoundStatement cpStmt = new CompoundStatement(stList);
             return cpStmt;
         }
 
-        Statement statement_list()
+        Sentence statement_list()
         {
-            Statement stmnt = statement();
+            Sentence stmnt = statement();
 
             return statement_listP(stmnt);
         }
 
-        Statement statement_listP(Statement statement1)
+        Sentence statement_listP(Sentence statement1)
         {
             switch (currentToken.Tipo)
             {
@@ -465,7 +466,7 @@ namespace Syntax
                 case TokenType.RETURN:
                 case TokenType.BREAK:
                 case TokenType.CONTINUE:
-                    Statement statement2 = statement();
+                    Sentence statement2 = statement();
 
                     StatementSequence statementList = new StatementSequence(statement1, statement2);
                     return statement_listP(statementList);
@@ -475,7 +476,7 @@ namespace Syntax
             }            
         }
 
-        Statement statement()
+        Sentence statement()
         {
             switch (currentToken.Tipo)
             {
@@ -483,18 +484,22 @@ namespace Syntax
                 case TokenType.BOOL:
                 case TokenType.CHAR:
                 case TokenType.FLOAT:
-                case TokenType.INT:
-                case TokenType.VOID:
-                case TokenType.STRUCT:
-                    //Statement decStmt = declaration_statement(); 
+                case TokenType.INT:                
+                    Sentence decStmt = declaration_statement(); 
                     match(";");
-                    //return decStmt;
-                    return null;
+                    return decStmt;
+
+                case TokenType.STRUCT:
+                    string strId = struct_declarator();
+                    Tipo varRecord = entorno.get(strId);
+                    string strVarName = currentToken.Lexema;
+                    match(TokenType.ID);
+                    return new StructVariableDeclaration(strId, strVarName, varRecord);
 
                 case TokenType.DECREMENT:
                 case TokenType.INCREMENT:
                 case TokenType.ID:
-                    Statement expStmt = expression_statement();
+                    Sentence expStmt = expression_statement();
                     match(";");
                     return expStmt;
 
@@ -511,17 +516,17 @@ namespace Syntax
                     return for_statement();
 
                 case TokenType.BREAK:
-                    Statement brkStmnt = break_statement(); 
+                    Sentence brkStmnt = break_statement(); 
                     match(";");
                     return brkStmnt;
 
                 case TokenType.CONTINUE:
-                    Statement contStmnt = continue_statement(); 
+                    Sentence contStmnt = continue_statement(); 
                     match(";");
                     return contStmnt;
 
                 case TokenType.RETURN:
-                    Statement ret = return_statement(); 
+                    Sentence ret = return_statement(); 
                     match(";");
                     return ret;
                 
@@ -531,86 +536,25 @@ namespace Syntax
             //null
         }
 
-        /*
-        #region declaration_statement
+        Sentence declaration_statement()
+        {
+            Tipo tipoVariables = variable_type();//tipo basico para todas las variables, si hay mas
+
+            Tipo tipoVariable = tipoVariables;
+            string idVariable = direct_variable_declarator(tipoVariable);
+            
+            VariableSubDeclarator primerVariable = new VariableSubDeclarator(tipoVariable, idVariable);
+
+            VariableDeclarator primerDeclaracionVariable = new VariableDeclarator(primerVariable, null);//todavia no hemos visto inicializadores
+
+            VariableDeclarations variableDeclarations = variable_declarator(primerDeclaracionVariable, tipoVariables);//para las variables que siguen            
+
+            return variableDeclarations;
+        }        
         
-        Statement declaration_statement()
-        {
-            switch (currentToken.Tipo)
-            {
-                case TokenType.STRING:
-                case TokenType.BOOL:
-                case TokenType.CHAR:
-                case TokenType.FLOAT:
-                case TokenType.INT:
-                    //return (Statement)variable_declaration();
-                    Tipo tipoVariables = variable_type();//tipo basico para todas las variables, si hay mas
-                    Tipo tipoVariable = tipoVariables;
-                    string idVariable = direct_variable_declarator(tipoVariable);
-
-                    VariableSubDeclarator primerVariable = new VariableSubDeclarator(tipoVariable, idVariable);
-                    VariableDeclaratorStatement primerDeclaracionVariable = new VariableDeclaratorStatement(primerVariable, null);//todavia no hemos visto inicializadores
-                    VariableDeclarationsStatement variableDeclarations = variable_declaratorStatement(primerDeclaracionVariable, tipoVariables);//para las variables que siguen
-                    
-                    //match(";");
-
-                return variableDeclarations;
-
-                case TokenType.STRUCT:
-                    string strId = struct_declarator();
-                    string strVar = currentToken.Lexema;
-                    match(TokenType.ID);
-
-                    StructVariableDeclarationStatement strVarDec = new StructVariableDeclarationStatement(strId, strVar);
-                    return strVarDec;
-
-                default:
-                    throw new Exception("Error en la declaracion de variables de statement linea: " + Lexer.line + " columna: " + Lexer.column + " currenttoken = " + currentToken.Lexema);
-            }
-        }    
-        
-        #region variable_declaratorStatement
-
-        VariableDeclarationsStatement variable_declaratorStatement(VariableDeclaratorStatement primerVariable, Tipo tipoVariables)
-        {
-            primerVariable.initialization = variable_initializer();//primer variable viene sin inicializador
-
-            entorno.put(primerVariable.declaration.id, primerVariable.declaration.tipo);//tablasimbolos
-
-            VariableDeclarationStatement listaDeclaracionVariables = variable_declaratorsStatement(primerVariable, tipoVariables);
-
-            return new VariableDeclarationsStatement(listaDeclaracionVariables);
-        }
-
-        VariableDeclarationStatement variable_declaratorsStatement(VariableDeclarationStatement beforeDeclaration, Tipo tipoVariables)
-        {
-            if (peek(","))
-            {
-                match(",");
-                Tipo tipoVariable = tipoVariables;
-                string idVariable = direct_variable_declarator(tipoVariable);
-                Initializers init = variable_initializer();
-
-                entorno.put(idVariable, tipoVariable);//tablasimbolos
-
-                VariableSubDeclarator variableActual = new VariableSubDeclarator(tipoVariable, idVariable);
-                VariableDeclaratorStatement actualDeclaration = new VariableDeclaratorStatement(variableActual, init);
-                VariableDeclaratorsStatement variableDeclarators = new VariableDeclaratorsStatement(beforeDeclaration, actualDeclaration);
-
-                return variable_declaratorsStatement(variableDeclarators, tipoVariables);
-            }
-            else
-                return beforeDeclaration;//null
-        }
-
-        #endregion
-
-        #endregion
-        */
-
         #region expression_statement
 
-        Statement expression_statement()
+        Sentence expression_statement()
         {
             Expr expresion = expr();            
             ExpressionStatement exprStatement = new ExpressionStatement(expresion);
@@ -621,42 +565,38 @@ namespace Syntax
 
         #region if_statement
 
-        Statement if_statement()
+        Sentence if_statement()
         {
             match("if"); 
             match("(");
             Expr expresion = expr();           
             match(")");
-            Statement trueBlock = if_compound_statement();
+            Sentence trueBlock = if_compound_statement();
 
             return elseif_(expresion, trueBlock);
-        }        
+        }
 
-        Statement if_compound_statement()
+        Sentence if_compound_statement()
         {
             if (peek("{"))
-            {
-                return compound_statement();
-            }
+                return compound_statement();            
             else
                 return statement();
         }
 
-        Statement elseif_(Expr condicion ,Statement trueBlock)
+        Sentence elseif_(Expr condicion, Sentence trueBlock)
         {
             if (peek("else"))
             {
                 match("else");
-                Statement falseBLock = elseif_P(condicion, trueBlock);
+                Sentence falseBLock = elseif_P(condicion, trueBlock);
                 return new IfElseStatement(condicion, trueBlock, falseBLock);
             }
             else
-            {
                 return new IfStatement(condicion, trueBlock);
-            }
         }
 
-        Statement elseif_P(Expr condicion, Statement trueBlock)
+        Sentence elseif_P(Expr condicion, Sentence trueBlock)
         {
             if (peek("if"))
             {
@@ -664,13 +604,13 @@ namespace Syntax
                 match("(");
                 Expr expresion = expr();
                 match(")");
-                Statement elseIfTrueBlock = if_compound_statement();
+                Sentence elseIfTrueBlock = if_compound_statement();
 
                 return elseif_(expresion, elseIfTrueBlock);
             }
             else
             {
-                Statement falseBlock = if_compound_statement();
+                Sentence falseBlock = if_compound_statement();
                 return new IfElseStatement(condicion, trueBlock, falseBlock);
             }
         }
@@ -679,16 +619,16 @@ namespace Syntax
 
         #region return, continue, break statements
 
-        Statement return_statement()
+        Sentence return_statement()
         {
-            match("return"); 
-            Statement expresion = return_statementP();
+            match("return");
+            Sentence expresion = return_statementP();
 
             ReturnStatement returnStmnt = new ReturnStatement(expresion);
             return returnStmnt;
         }
 
-        Statement return_statementP()
+        Sentence return_statementP()
         {
             switch (currentToken.Tipo)
             {
@@ -698,7 +638,7 @@ namespace Syntax
                 case TokenType.REAL_LITERAL:
                 case TokenType.INTEGER_LITERAL:
                 case TokenType.LEFT_PARENTHESIS:
-                    Statement expresion = expression_statement();
+                    Sentence expresion = expression_statement();
                     return expresion;
 
                 default:
@@ -707,13 +647,13 @@ namespace Syntax
             //null
         }
 
-        Statement break_statement()
+        Sentence break_statement()
         {
             match("break");
             return new BreakStatement();
         }
 
-        Statement continue_statement()
+        Sentence continue_statement()
         {
             match("continue"); 
             return new ContinueStatement();
@@ -723,14 +663,14 @@ namespace Syntax
 
         #region while_statement
 
-        Statement while_statement()
+        Sentence while_statement()
         {
             match("while");
             match("(");
             Expr expresion = expr();
             //Statement expresion = expression_statement();            
-            match(")"); 
-            Statement ifCpStmnt = if_compound_statement();
+            match(")");
+            Sentence ifCpStmnt = if_compound_statement();
 
             WhileStatement whileStmnt = new WhileStatement(expresion, ifCpStmnt);
             return whileStmnt;
@@ -740,25 +680,18 @@ namespace Syntax
 
         #region do while
 
-        Statement do_while()
+        Sentence do_while()
         {
-            match("do"); 
-            Statement stmnt = compound_statement();
-            Statement doWhileStmnt = do_whileP(stmnt);
+            match("do");
+            Sentence stmnt = compound_statement();
 
-            return doWhileStmnt;
-        }
-
-        Statement do_whileP(Statement compoundStatemnt)
-        {
             match("while");
-            match("("); 
+            match("(");
             Expr exprStmnt = expr();
-            //Statement exprStmnt = expression_statement();
             match(")");
             match(";");
 
-            DoWhileStatement doWhileStmnt = new DoWhileStatement(exprStmnt, compoundStatemnt);
+            DoWhileStatement doWhileStmnt = new DoWhileStatement(exprStmnt, stmnt);
             return doWhileStmnt;
         }
 
@@ -766,24 +699,24 @@ namespace Syntax
 
         #region for_statement
 
-        Statement for_statement()
+        Sentence for_statement()
         {
             match("for");
             match("(");
-            Statement forInitialization = for_initialization(); 
-            match(";"); 
-            Statement forControl = for_control(); 
+            Sentence forInitialization = for_initialization(); 
             match(";");
-            Statement forIteration = for_iteration();
+            Sentence forControl = for_control(); 
+            match(";");
+            Sentence forIteration = for_iteration();
             match(")");
 
-            Statement ifCompoundStatement = if_compound_statement();
+            Sentence ifCompoundStatement = if_compound_statement();
 
             ForStatement forStmnt = new ForStatement(forInitialization, forControl, forIteration, ifCompoundStatement);
             return forStmnt;
         }
 
-        Statement for_initialization()
+        Sentence for_initialization()
         {
             switch (currentToken.Tipo)
             {
@@ -792,8 +725,8 @@ namespace Syntax
                 case TokenType.CHAR:
                 case TokenType.FLOAT:
                 case TokenType.INT:
-                    //return declaration_statement();
-                    return null;
+                    return declaration_statement();
+                    
                 
                 case TokenType.ID:
                 case TokenType.INCREMENT:
@@ -807,7 +740,7 @@ namespace Syntax
             //null
         }
 
-        Statement for_control()
+        Sentence for_control()
         {
             if (peek(TokenType.INTEGER_LITERAL) || peek(TokenType.ID))
             {
@@ -817,7 +750,7 @@ namespace Syntax
             //null
         }
 
-        Statement for_iteration()
+        Sentence for_iteration()
         {
             if (peek(TokenType.INTEGER_LITERAL) || peek(TokenType.ID))
             {
@@ -856,7 +789,7 @@ namespace Syntax
         {
             match("enum");
             string enumName = currentToken.Lexema;
-            match(TokenType.ID);
+            match(TokenType.ID);            
             return enumName;
         }
 
@@ -864,20 +797,27 @@ namespace Syntax
         {
             if (peek("{"))
             {
-                match("{"); 
+                match("{");
+                Env savedEnv = entorno;
+                entorno = new Env(null);
                 List<VariableDeclarator> varsDec = enum_initializer_list();
                 match("}");
 
-                EnumerationDeclaration enumDec = new EnumerationDeclaration(enumName, varsDec);
-                return enumDec;
+                EnumerationDeclaration enumDeclaration = new EnumerationDeclaration(enumName, varsDec, entorno);
+                entorno = savedEnv;
+                entorno.put(enumName, new Enumeracion());
+
+                return enumDeclaration;
             }
             else
             {
+                Tipo varEnum = entorno.get(enumName);
                 string enumVarName = currentToken.Lexema;
                 match(TokenType.ID);
 
-                EnumerationVariableDeclaration enumVarDec = new EnumerationVariableDeclaration(enumName, enumVarName);
-                return enumVarDec;
+                EnumerationVariableDeclaration enumVarDeclaration = new EnumerationVariableDeclaration(enumName, enumVarName, varEnum);
+
+                return enumVarDeclaration;
             }
         }
 
@@ -956,9 +896,9 @@ namespace Syntax
                 Sentence strDec = variable_declaration_list();
                 match("}");
 
-                Registro record = new Registro(entorno);
-                
-                entorno = savedEnv;                
+                Registro record = new Registro(entorno);                
+                entorno = savedEnv;
+                entorno.put(structName, record);
                 return strDec;
             }
             else

@@ -25,7 +25,7 @@ namespace Semantic
             if (!tablaSimbolos.ContainsKey(key))
                 tablaSimbolos.Add(key, tipo);
             else
-                throw new Exception("La variable " + key + " ya fue declarada.");
+                throw new Exception("La variable \"" + key + "\" ya fue declarada.");
         }
 
         public Tipo get(string key)

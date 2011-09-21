@@ -214,10 +214,7 @@ namespace SyntaxTree
             Console.WriteLine(genCode());
         }
 
-        public virtual string genCode()
-        {
-            return "Sentencia";
-        }
+        public abstract string genCode();
 
         public abstract void validarSemantica();
 
@@ -239,7 +236,7 @@ namespace SyntaxTree
 
         public override string genCode()
         {
-            return sent1.genCode() + "\n" + sent2.genCode();
+            return sent1.genCode() + ", " + sent2.genCode() + "\n";
         }
 
         public override void validarSemantica()
@@ -285,7 +282,7 @@ namespace SyntaxTree
 
         public override string genCode()
         {
-            return "VariableDeclarator, VariableDeclarator";
+            return varDeclarator1.genCode() + ", " + varDeclarator2.genCode() + "\n";
         }
 
         public override void validarSemantica()
@@ -308,10 +305,12 @@ namespace SyntaxTree
 
         public override string genCode()
         {
-            if (initialization == null)
-                return "VariableDeclarator";
-            else
-                return "VariableDeclarator = VariableInitializer";
+            string initString = "";
+            
+            if (initialization != null)
+                initString = " = " + initialization.genCode();
+
+            return "VariableSubDeclarator" + initString;
         }
 
         public override void validarSemantica()
@@ -341,6 +340,8 @@ namespace SyntaxTree
     public abstract class Initializers
     {
         public abstract Tipo validarSemantico();
+
+        public abstract string genCode();
     }
 
     public class VariableInitializer : Initializers
@@ -355,6 +356,11 @@ namespace SyntaxTree
         public override Tipo validarSemantico()
         {
             return Expresion.validarSemantico();
+        }
+
+        public override string genCode()
+        {
+            return "initializer";
         }
     }
 
@@ -405,7 +411,12 @@ namespace SyntaxTree
             else
                 throw new Exception("Error en la inicializacion, tipo distinto de initializer??.");
         }
-    }    
+
+        public override string genCode()
+        {
+            return "{ initializer }";
+        }
+    }
 
     #endregion
 
@@ -418,9 +429,9 @@ namespace SyntaxTree
         public Env entornoLocal;
         public string idFuncion;
         public Tipo retorno;
-        public Statement compoundStatement;
+        public Sentence compoundStatement;
 
-        public FuntionDefinition(string nombreFuncion, Tipo ret, Statement cpStmnt)
+        public FuntionDefinition(string nombreFuncion, Tipo ret, Sentence cpStmnt)
         {
             idFuncion = nombreFuncion;
             retorno = ret;
@@ -435,7 +446,7 @@ namespace SyntaxTree
 
         public override void validarSemantica()
         {
-            throw new NotImplementedException();
+            compoundStatement.validarSemantica();
         }
     }
 
@@ -450,136 +461,59 @@ namespace SyntaxTree
         public Statement() { }
         public static Statement Null = new Statement();
         public static Statement Enclosing = Statement.Null;
-        
+
+        public override string genCode()
+        {
+            throw ErrorMessage("genCode().");
+        }
+
         public override void validarSemantica()
         {
-            throw new NotImplementedException();
+            throw ErrorMessage("validarSemantica().");
         }
     }
 
     public class StatementSequence : Statement
     {
-        public Statement stmt1, stmt2;
+        public Sentence stmt1, stmt2;
 
-        public StatementSequence(Statement s1, Statement s2)
+        public StatementSequence(Sentence s1, Sentence s2)
         {
             stmt1 = s1;
             stmt2 = s2;
+        }
+
+        public override string genCode()
+        {
+            return stmt1.genCode() + ", " + stmt2.genCode() + "\n";
+        }
+
+        public override void validarSemantica()
+        {
+            stmt1.validarSemantica();
+            stmt1.validarSemantica();
         }
     }
 
     public class CompoundStatement : Statement
     {
-        public Statement Sentencias;
+        public Sentence Sentencias;
 
-        public CompoundStatement(Statement listaSentencias)
+        public CompoundStatement(Sentence listaSentencias)
         {
             Sentencias = listaSentencias;
         }
 
         public override string genCode()
         {
-            return "CompoundStatement";
-        }
-    }
-
-    #region DeclarationStatement
-
-    public class DeclarationStatement : Statement
-    {
-        public Tipo tipo;
-        public List<VariableDeclarator> ids;
-
-        public DeclarationStatement(Tipo tipoVariable, List<VariableDeclarator> listaIds)
-        {
-            tipo = tipoVariable;
-            ids = listaIds;
-        }
-
-        public override string genCode()
-        {
-            return "DeclarationStatement";
-        }
-    }
-    /*
-    #region VariableDeclaration
-
-    public class VariableDeclarationsStatement : Statement
-    {
-        public VariableDeclarationStatement variableDeclarations;
-
-        public VariableDeclarationsStatement(VariableDeclarationStatement VarDeclarations)
-        {
-            variableDeclarations = VarDeclarations;
-        }
-
-        public override string genCode()
-        {
-            return variableDeclarations.genCode();
+            return Sentencias.genCode();
         }
 
         public override void validarSemantica()
         {
-            variableDeclarations.validarSemantica();
+            Sentencias.validarSemantica();
         }
     }
-
-    public abstract class VariableDeclarationStatement : Statement { }
-
-    public class VariableDeclaratorsStatement : VariableDeclarationStatement
-    {
-        public VariableDeclarationStatement varDeclarator1, varDeclarator2;
-
-        public VariableDeclaratorsStatement(VariableDeclarationStatement vDec1, VariableDeclarationStatement vDec2)
-        {
-            varDeclarator1 = vDec1;
-            varDeclarator2 = vDec2;
-        }
-
-        public override string genCode()
-        {
-            return "VariableDeclarator, VariableDeclarator";
-        }
-
-        public override void validarSemantica()
-        {
-            varDeclarator1.validarSemantica();
-            varDeclarator2.validarSemantica();
-        }
-    }
-
-    public class VariableDeclaratorStatement : VariableDeclarationStatement
-    {
-        public VariableSubDeclarator declaration;
-        public Initializers initialization;
-
-        public VariableDeclaratorStatement(VariableSubDeclarator dec, Initializers init)
-        {
-            declaration = dec;
-            initialization = init;
-        }
-
-        public override string genCode()
-        {
-            if (initialization == null)
-                return "VariableDeclarator";
-            else
-                return "VariableDeclarator = VariableInitializer";
-        }
-
-        public override void validarSemantica()
-        {
-            if (initialization != null)
-            {
-                if (!declaration.tipo.esEquivalente(initialization.validarSemantico()))
-                    throw ErrorMessage("La inicializacion de la variable es incorrecta.");
-            }
-        }
-    }    
-    
-    #endregion
-    */
-    #endregion
 
     public class ExpressionStatement : Statement
     {
@@ -594,14 +528,19 @@ namespace SyntaxTree
         {
             return "ExpressionStatement";
         }
+
+        public override void validarSemantica()
+        {
+            expresion.validarSemantico();
+        } 
     }
 
     public class IfStatement : Statement
     {
         public Expr condicion;
-        public Statement BloqueVerdadero;
+        public Sentence BloqueVerdadero;
 
-        public IfStatement(Expr cond, Statement bloqueTrue)
+        public IfStatement(Expr cond, Sentence bloqueTrue)
         {
             condicion = cond;
             BloqueVerdadero = bloqueTrue;
@@ -625,10 +564,10 @@ namespace SyntaxTree
     public class IfElseStatement : Statement
     {
         public Expr condicion;
-        public Statement BloqueVerdadero;
-        public Statement BloqueFalso;
+        public Sentence BloqueVerdadero;
+        public Sentence BloqueFalso;
 
-        public IfElseStatement(Expr cond, Statement bloqueTrue, Statement bloqueFalse)
+        public IfElseStatement(Expr cond, Sentence bloqueTrue, Sentence bloqueFalse)
         {
             condicion = cond;
             BloqueVerdadero = bloqueTrue;
@@ -654,9 +593,9 @@ namespace SyntaxTree
     public class DoWhileStatement : Statement
     {
         public Expr expresion;
-        public Statement compoundStatement;
+        public Sentence compoundStatement;
 
-        public DoWhileStatement(Expr expr, Statement cpStmnt)
+        public DoWhileStatement(Expr expr, Sentence cpStmnt)
         {
             expresion = expr;
             compoundStatement = cpStmnt;
@@ -679,9 +618,9 @@ namespace SyntaxTree
     public class WhileStatement : Statement
     {
         public Expr expresion;
-        public Statement compoundstatement;
+        public Sentence compoundstatement;
 
-        public WhileStatement(Expr expr, Statement cpStmnt)
+        public WhileStatement(Expr expr, Sentence cpStmnt)
         {
             expresion = expr;
             compoundstatement = cpStmnt;
@@ -703,9 +642,9 @@ namespace SyntaxTree
 
     public class ForStatement : Statement
     {
-        public Statement forInitialization, forControl, forIteration, CompoundStatement;
+        public Sentence forInitialization, forControl, forIteration, CompoundStatement;
 
-        public ForStatement(Statement forInit, Statement forCtrl, Statement forIter, Statement cpStmnt)
+        public ForStatement(Sentence forInit, Sentence forCtrl, Sentence forIter, Sentence cpStmnt)
         {
             forInitialization = forInit;
             forControl = forCtrl;
@@ -733,16 +672,7 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "ContinueStatement";
-        }
-
-        public override void validarSemantica()
-        {
-            /*if (Statement.Enclosing == null)
-                throw new Exception("Continue fuera de ciclo. Linea:" + lexline);
-            else
-                stmt = Statement.Enclosing;*/
-            throw new NotImplementedException();
-        }
+        }        
     }
 
     public class BreakStatement : Statement
@@ -756,23 +686,14 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "BreakStatement";
-        }
-
-        public override void validarSemantica()
-        {
-            /*if (Statement.Enclosing == null)
-                throw new Exception("Break fuera de ciclo. Linea:" + lexline);
-            else
-                stmt = Statement.Enclosing;*/
-            throw new NotImplementedException();
-        }
+        }        
     }
 
     public class ReturnStatement : Statement
     {
-        public Statement expresion;
+        public Sentence expresion;
 
-        public ReturnStatement(Statement expr)
+        public ReturnStatement(Sentence expr)
         {
             expresion = expr;
         }
@@ -780,12 +701,7 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "ReturnStatement";
-        }
-
-        public override void validarSemantica()
-        {
-            throw new NotImplementedException();
-        }
+        }        
     }
 
     #endregion
@@ -812,15 +728,13 @@ namespace SyntaxTree
         public override void validarSemantica()
         {
             if (!(tipo is Registro))
-                throw ErrorMessage("Tipo deberia ser de struct!");
+                throw ErrorMessage("Tipo deberia ser de struct! Tipo:" + tipo.ToString() + " id:" + strId + ".");
         }
     }
 
     public class StructDeclaration : Sentence
-    {        
-        public StructDeclaration()
-        {
-        }
+    {
+        public StructDeclaration() { }
 
         public override string genCode()
         {
@@ -831,23 +745,7 @@ namespace SyntaxTree
         {
             
         }
-    }
-
-    public class StructVariableDeclarationStatement : Statement
-    {
-        string strId, strVarId;
-
-        public StructVariableDeclarationStatement(string strid,string strvarname)
-        {
-            strId = strid;
-            strVarId = strvarname;
-        }
-
-        public override string genCode()
-        {
-            return "StructVariableDeclaration";
-        }
-    }
+    }    
 
     #endregion
 
@@ -855,13 +753,15 @@ namespace SyntaxTree
 
     public class EnumerationDeclaration : Sentence
     {
-        string enumId;
-        List<VariableDeclarator> variables;
+        public string enumId;
+        public List<VariableDeclarator> variables;
+        public Env entornoEnum;
 
-        public EnumerationDeclaration(string id, List<VariableDeclarator> vars)
+        public EnumerationDeclaration(string id, List<VariableDeclarator> vars, Env entorno)
         {
             enumId = id;
             variables = vars;
+            entornoEnum = entorno;
         }
 
         public override string genCode()
@@ -871,18 +771,20 @@ namespace SyntaxTree
 
         public override void validarSemantica()
         {
-            throw new NotImplementedException();
+            
         }
     }
 
     public class EnumerationVariableDeclaration : Sentence
     {
-        string enumerationName, enumerationVarName;
+        public string enumerationName, enumerationVarName;
+        public Tipo tipo;
 
-        public EnumerationVariableDeclaration(string enumName, string enumVarName)
+        public EnumerationVariableDeclaration(string enumName, string enumVarName, Tipo tipoenum)
         {
             enumerationName = enumName;
             enumerationVarName = enumVarName;
+            tipo = tipoenum;
         }
 
         public override string genCode()
@@ -892,7 +794,8 @@ namespace SyntaxTree
 
         public override void validarSemantica()
         {
-            throw new NotImplementedException();
+            if (!(tipo is Enumeracion))
+                throw ErrorMessage("Tipo deberia ser de enum! Tipo:" + tipo.ToString() + " id:" + enumerationName + ".");
         }
     }
 
