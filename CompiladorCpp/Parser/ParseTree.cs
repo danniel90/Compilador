@@ -424,14 +424,24 @@ namespace SyntaxTree
 
     #region FunctionDefinition
 
-    public class FuntionDefinition : Sentence
+    public class FunctionDefinition : Sentence
     {
         public Env entornoLocal;
         public string idFuncion;
         public Tipo retorno;
-        public Sentence compoundStatement;
+        public Sentence compoundStatement;        
 
-        public FuntionDefinition(string nombreFuncion, Tipo ret, Sentence cpStmnt)
+        public FunctionDefinition(string nombreFuncion, Tipo ret, Sentence cpStmnt)
+        {
+            idFuncion = nombreFuncion;
+            retorno = ret;
+            compoundStatement = cpStmnt;
+            entornoLocal = Parser.entorno;
+        }
+
+        public FunctionDefinition() { }
+
+        public void init(string nombreFuncion, Tipo ret, Sentence cpStmnt)
         {
             idFuncion = nombreFuncion;
             retorno = ret;
@@ -456,10 +466,10 @@ namespace SyntaxTree
 
     #region Statement
 
-    public class Statement : Sentence
+    public abstract class Statement : Sentence
     {
-        public Statement() { }
-        public static Statement Null = new Statement();
+        /*public Statement() { }
+        public static Statement Null = null;
         public static Statement Enclosing = Statement.Null;
 
         public override string genCode()
@@ -470,7 +480,7 @@ namespace SyntaxTree
         public override void validarSemantica()
         {
             throw ErrorMessage("validarSemantica().");
-        }
+        }*/
     }
 
     public class StatementSequence : Statement
@@ -491,7 +501,7 @@ namespace SyntaxTree
         public override void validarSemantica()
         {
             stmt1.validarSemantica();
-            stmt1.validarSemantica();
+            stmt2.validarSemantica();
         }
     }
 
@@ -553,9 +563,9 @@ namespace SyntaxTree
 
         public override void  validarSemantica()
         {
-            Tipo t = condicion.validarSemantico();
-            if (!(t is Entero || t is Flotante || t is Booleano))
-                throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico.");
+            /*Tipo t = condicion.validarSemantico();
+            if (t is Cadena || t is Caracter || t is Registro || t is Enumeracion)
+                throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico. Tipo:" + t.ToString());*/
 
             BloqueVerdadero.validarSemantica();
         }
@@ -581,9 +591,9 @@ namespace SyntaxTree
 
         public override void validarSemantica()
         {
-            Tipo t = condicion.validarSemantico();
-            if (!(t is Entero || t is Flotante || t is Booleano))
-                throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico.");
+            /*Tipo t = condicion.validarSemantico();
+            if (t is Cadena || t is Caracter || t is Registro || t is Enumeracion)
+                throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico. Tipo:" + t.ToString());*/
 
             BloqueVerdadero.validarSemantica();
             BloqueFalso.validarSemantica();
@@ -595,7 +605,15 @@ namespace SyntaxTree
         public Expr expresion;
         public Sentence compoundStatement;
 
+        public DoWhileStatement() { }
+
         public DoWhileStatement(Expr expr, Sentence cpStmnt)
+        {
+            expresion = expr;
+            compoundStatement = cpStmnt;
+        }
+
+        public void DoWhileInit(Expr expr, Sentence cpStmnt)
         {
             expresion = expr;
             compoundStatement = cpStmnt;
@@ -620,7 +638,15 @@ namespace SyntaxTree
         public Expr expresion;
         public Sentence compoundstatement;
 
+        public WhileStatement() { }
+
         public WhileStatement(Expr expr, Sentence cpStmnt)
+        {
+            expresion = expr;
+            compoundstatement = cpStmnt;
+        }
+
+        public void WhileInit(Expr expr, Sentence cpStmnt)
         {
             expresion = expr;
             compoundstatement = cpStmnt;
@@ -644,7 +670,17 @@ namespace SyntaxTree
     {
         public Sentence forInitialization, forControl, forIteration, CompoundStatement;
 
+        public ForStatement() { }
+
         public ForStatement(Sentence forInit, Sentence forCtrl, Sentence forIter, Sentence cpStmnt)
+        {
+            forInitialization = forInit;
+            forControl = forCtrl;
+            forIteration = forIter;
+            CompoundStatement = cpStmnt;
+        }
+
+        public void ForInit(Sentence forInit, Sentence forCtrl, Sentence forIter, Sentence cpStmnt)
         {
             forInitialization = forInit;
             forControl = forCtrl;
@@ -659,49 +695,82 @@ namespace SyntaxTree
 
         public override void validarSemantica()
         {
-            throw new NotImplementedException();
+            forInitialization.validarSemantica();
+            forControl.validarSemantica();
+            forIteration.validarSemantica();
+
+            CompoundStatement.validarSemantica();
         }
-    }
+    }   
 
     public class ContinueStatement : Statement
     {
         public Statement stmt;
+        public Sentence enclosing;
 
-        public ContinueStatement() { }
+        public ContinueStatement() 
+        {
+            enclosing = Parser.cicloActual;
+        }
 
         public override string genCode()
         {
             return "ContinueStatement";
-        }        
+        }
+
+        public override void validarSemantica()
+        {
+            if (enclosing == null)
+                throw ErrorMessage("ContinueStatement sin ciclo."); 
+        }
     }
 
     public class BreakStatement : Statement
     {
         public Statement stmt;
+        public Sentence enclosing;
 
         public BreakStatement()
-        {            
+        {
+            enclosing = Parser.cicloActual;
         }
 
         public override string genCode()
         {
             return "BreakStatement";
-        }        
+        }
+
+        public override void validarSemantica()
+        {
+            if (enclosing == null)
+                throw ErrorMessage("BreakStatement sin ciclo."); 
+        }
     }
 
     public class ReturnStatement : Statement
     {
         public Sentence expresion;
+        public Sentence enclosing;
 
         public ReturnStatement(Sentence expr)
-        {
+        {            
             expresion = expr;
+            enclosing = Parser.funcionActual;
         }
 
         public override string genCode()
         {
             return "ReturnStatement";
-        }        
+        }
+
+        public override void validarSemantica()
+        {
+            if (expresion != null)
+                expresion.validarSemantica();
+
+            if (enclosing == null)
+                throw ErrorMessage("Return inalcanzable o sin funcion."); 
+        }
     }
 
     #endregion
@@ -822,12 +891,12 @@ namespace SyntaxTree
 
         public virtual string genCode()
         {
-            return "Expr";
+            throw ErrorMessage("Expr genCode()");
         }
 
         public virtual Tipo validarSemantico()
         {
-            throw new NotImplementedException("Base Expr class.");
+            throw ErrorMessage("Expr validarSemantico()");            
         }
 
         protected Exception ErrorMessage(string message)
@@ -1722,7 +1791,8 @@ namespace SyntaxTree
 
         public override Tipo validarSemantico()
         {
-            return entornoActual.get(lexeme);
+            Tipo t = entornoActual.get(lexeme);
+            return t;
         }
     }
 

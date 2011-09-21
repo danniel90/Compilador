@@ -16,6 +16,8 @@ namespace Syntax
         public Lexer lex;
 
         public static Env entorno;
+        public static Sentence funcionActual = null;
+        public static Sentence cicloActual = null;
         #endregion
 
         #region constructores
@@ -319,16 +321,23 @@ namespace Syntax
             Tipo paramsTypeList = parameter_type_list(); 
             match(")");
 
-            if (paramsTypeList != null)
-            {
+            //if (paramsTypeList != null)
+            //{
                 Funcion funcion = new Funcion(retorno, paramsTypeList);
                 entorno.put(id, funcion);//global
-            }
+            //}
 
-            Sentence compoundStmnt = function_definition();
+            FunctionDefinition funcDefinition = new FunctionDefinition();
+            funcionActual = funcDefinition;
 
-            FuntionDefinition funcDefinition = new FuntionDefinition(id, retorno, compoundStmnt);
-            //FuncionDefinition funcDefinition = new FuncionDefinition(paramsTypeList, compoundStmnt, id, retorno);
+            Env savedEnv = entorno;
+            entorno = new Env(entorno);
+            Sentence compoundStmnt = function_definition();            
+
+            //FunctionDefinition funcDefinition = new FunctionDefinition(id, retorno, compoundStmnt);
+            funcDefinition.init(id, retorno, compoundStmnt);
+            entorno = savedEnv;
+            funcionActual = null;
             return funcDefinition;
         }
 
@@ -589,8 +598,9 @@ namespace Syntax
             if (peek("else"))
             {
                 match("else");
+
                 Sentence falseBLock = elseif_P(condicion, trueBlock);
-                return new IfElseStatement(condicion, trueBlock, falseBLock);
+                return new IfElseStatement(condicion, trueBlock, falseBLock);                
             }
             else
                 return new IfStatement(condicion, trueBlock);
@@ -599,20 +609,9 @@ namespace Syntax
         Sentence elseif_P(Expr condicion, Sentence trueBlock)
         {
             if (peek("if"))
-            {
-                match("if");
-                match("(");
-                Expr expresion = expr();
-                match(")");
-                Sentence elseIfTrueBlock = if_compound_statement();
-
-                return elseif_(expresion, elseIfTrueBlock);
-            }
+                return if_statement();
             else
-            {
-                Sentence falseBlock = if_compound_statement();
-                return new IfElseStatement(condicion, trueBlock, falseBlock);
-            }
+                return if_compound_statement();
         }
 
         #endregion
@@ -625,6 +624,7 @@ namespace Syntax
             Sentence expresion = return_statementP();
 
             ReturnStatement returnStmnt = new ReturnStatement(expresion);
+            funcionActual = null;
             return returnStmnt;
         }
 
@@ -665,14 +665,18 @@ namespace Syntax
 
         Sentence while_statement()
         {
+            WhileStatement whileStmnt = new WhileStatement();
+            Sentence cicloAnterior = cicloActual;
+            cicloActual = whileStmnt;
+
             match("while");
             match("(");
             Expr expresion = expr();
-            //Statement expresion = expression_statement();            
             match(")");
             Sentence ifCpStmnt = if_compound_statement();
-
-            WhileStatement whileStmnt = new WhileStatement(expresion, ifCpStmnt);
+            
+            whileStmnt.WhileInit(expresion, ifCpStmnt);
+            cicloActual = cicloAnterior;
             return whileStmnt;
         }
 
@@ -682,16 +686,20 @@ namespace Syntax
 
         Sentence do_while()
         {
+            DoWhileStatement doWhileStmnt = new DoWhileStatement();
+            Sentence cicloAnterior = cicloActual;
+            cicloActual = doWhileStmnt;
+
             match("do");
             Sentence stmnt = compound_statement();
-
             match("while");
             match("(");
-            Expr exprStmnt = expr();
+            Expr expresion = expr();
             match(")");
             match(";");
 
-            DoWhileStatement doWhileStmnt = new DoWhileStatement(exprStmnt, stmnt);
+            doWhileStmnt.DoWhileInit(expresion, stmnt);
+            cicloActual = cicloAnterior;            
             return doWhileStmnt;
         }
 
@@ -701,6 +709,10 @@ namespace Syntax
 
         Sentence for_statement()
         {
+            ForStatement forStmnt = new ForStatement();
+            Sentence cicloAnterior = cicloActual;
+            cicloActual = forStmnt;
+
             match("for");
             match("(");
             Sentence forInitialization = for_initialization(); 
@@ -710,9 +722,11 @@ namespace Syntax
             Sentence forIteration = for_iteration();
             match(")");
 
-            Sentence ifCompoundStatement = if_compound_statement();
+            Sentence compoundStatement = if_compound_statement();
 
-            ForStatement forStmnt = new ForStatement(forInitialization, forControl, forIteration, ifCompoundStatement);
+            forStmnt.ForInit(forInitialization, forControl, forIteration, compoundStatement);
+            cicloActual = cicloAnterior;
+            //ForStatement forStmnt = new ForStatement(forInitialization, forControl, forIteration, ifCompoundStatement);
             return forStmnt;
         }
 

@@ -33,10 +33,10 @@ namespace Semantic
             for (Env e = this; e != null; e = e.previo)
             {
                 if (e.tablaSimbolos.ContainsKey(key))
-                    return tablaSimbolos[key];
+                    return e.tablaSimbolos[key];
             }
 
             throw new Exception("La variable " + key + " no existe.");
-        }        
+        }
     }
 }
