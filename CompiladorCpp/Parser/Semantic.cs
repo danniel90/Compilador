@@ -5,7 +5,7 @@ using System.Text;
 
 using SyntaxTree;
 
-namespace Semantic
+namespace Environment
 {
     public class Env
     {        

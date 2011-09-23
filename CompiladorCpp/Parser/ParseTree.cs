@@ -4,194 +4,12 @@ using System.Linq;
 using System.Text;
 
 using Lexical;
-using Semantic;
+//using Semantic;
 using Syntax;
+using Environment;
 
 namespace SyntaxTree
-{
-    #region tipo
-
-    public abstract class Tipo
-    {
-        public abstract bool esEquivalente(Tipo t);
-    }
-
-    public class Entero : Tipo
-    {
-        public override bool esEquivalente(Tipo t)
-        {
-            return t is Entero;
-        }
-    }
-
-    public class Flotante : Tipo
-    {
-        public override bool esEquivalente(Tipo t)
-        {
-            return t is Flotante;
-        }
-    }
-
-    public class Caracter : Tipo
-    {
-        public override bool esEquivalente(Tipo t)
-        {
-            return t is Caracter;
-        }
-    }
-
-    public class Cadena : Tipo
-    {
-        public override bool esEquivalente(Tipo t)
-        {
-            return t is Cadena;
-        }
-    }
-
-    public class Booleano : Tipo
-    {
-        public override bool esEquivalente(Tipo t)
-        {
-            return t is Booleano;
-        }
-    }
-
-    public class Void : Tipo
-    {
-        public override bool esEquivalente(Tipo t)
-        {
-            return t is Void;
-        }
-    }
-
-    public class Enumeracion : Tipo
-    {
-        public override bool esEquivalente(Tipo t)
-        {
-            return t is Enumeracion;
-        }
-    }         
-
-    public class Registro : Tipo
-    {
-        public Env entornoStruct;
-
-        public Registro(Env entorno)
-        {
-            entornoStruct = entorno;
-        }
-
-        public override bool esEquivalente(Tipo t)
-        {
-            if (t is Registro)
-            {
-                Registro r = (Registro)t;
-
-                if (entornoStruct.tablaSimbolos.Count == r.entornoStruct.tablaSimbolos.Count)
-                {
-                    for (int i = 0; i < entornoStruct.tablaSimbolos.Count; i++)
-                    {
-                        Tipo miCampo = entornoStruct.tablaSimbolos.ElementAt(i).Value;
-                        Tipo otroCampo = r.entornoStruct.tablaSimbolos.ElementAt(i).Value;
-
-                        if (!(miCampo.esEquivalente(otroCampo)))
-                            return false;
-                    }
-                    return true;
-                }
-                else
-                    return false;
-            }
-            else
-                return false;
-        }
-    }
-
-    public class Arreglo : Tipo
-    {
-        public Tipo tipoArreglo;
-        //public Expr size;
-        public int size;
-
-        public Arreglo(Tipo tipo, int tam)
-        {            
-            tipoArreglo = tipo;
-            size = tam;
-        }
-
-        public override bool esEquivalente(Tipo t)
-        {
-            if (t is Arreglo)
-            {
-                Arreglo array = (Arreglo)t;
-
-                if (!tipoArreglo.esEquivalente(array.tipoArreglo))
-                    return false;
-
-                return size == array.size;
-            }
-            else
-                return false;
-        }
-    }
-    
-    public class Funcion : Tipo
-    {
-        public Tipo tipoRetorno;
-        public Tipo Parametros;
-
-        public Funcion(Tipo retorno, Tipo parametros)
-        {
-            tipoRetorno = retorno;
-            Parametros = parametros;
-        }
-
-        public override bool esEquivalente(Tipo t)
-        {
-            if (t is Funcion)
-            {
-                Funcion func = (Funcion)t;
-
-                if (!tipoRetorno.esEquivalente(func.tipoRetorno))
-                    return false;
-
-                return Parametros.esEquivalente(func.Parametros);
-            }
-            else
-                return false;
-        }
-    }
-
-    public class Product : Tipo
-    {
-        public Tipo Type1, Type2;
-
-        public Product(Tipo type1, Tipo type2)
-        {
-            Type1 = type1;
-            Type2 = type2;
-        }
-
-        public override bool esEquivalente(Tipo t)
-        {
-            if (t is Product)
-            {
-                Product p = (Product)t;
-
-                if (!Type1.esEquivalente(p.Type1))
-                    return false;
-
-                if (!Type2.esEquivalente(p.Type2))
-                    return false;
-
-                return true;
-            }
-            else
-                return false;
-        }
-    }
-        
-    #endregion
+{ 
 
     #region program
 
@@ -221,6 +39,37 @@ namespace SyntaxTree
         protected Exception ErrorMessage(string message)
         {
             throw new Exception(message + " Linea:" + lexline);
+        }
+    }
+
+    public class Program : Sentence
+    {
+        public Sentence main;
+
+        public Sentence sentences;
+
+        public Program() { }
+
+        public void ProgramInit(Sentence sents)
+        {
+            sentences = sents;
+        }
+
+        public override string genCode()
+        {
+            return sentences.genCode();
+        }
+
+        public override void validarSemantica()
+        {
+            if (main == null)
+                throw ErrorMessage("No hay funcion \"main\".");
+            else
+                if (!(((FunctionDefinition)main).retorno is Entero))
+                    throw ErrorMessage("Retorno ew la funcion main deberia ser de tipo int");
+            
+            sentences.validarSemantica();
+            main.validarSemantica();
         }
     }
 
@@ -337,11 +186,8 @@ namespace SyntaxTree
 
     #region initializers
 
-    public abstract class Initializers
-    {
-        public abstract Tipo validarSemantico();
-
-        public abstract string genCode();
+    public abstract class Initializers : Expr
+    {        
     }
 
     public class VariableInitializer : Initializers
@@ -365,6 +211,60 @@ namespace SyntaxTree
     }
 
     public class VariableInitializerList : Initializers
+    {
+        List<Initializers> initializerList;
+
+        public VariableInitializerList(List<Initializers> initializersList)
+        {
+            initializerList = initializersList;
+        }
+
+        public override Tipo validarSemantico()
+        {
+            Tipo t0 = validarSemanticoHelper();
+
+            for (int x = 1; x < initializerList.Count; x++)
+            {
+                Tipo t = initializerList[x].validarSemantico();
+
+                if (!t0.esEquivalente(t))
+                    throw ErrorMessage("Inicializacion incorrecta de arreglo. t0:" + t0.ToString() + " t" + x +":" + t.ToString());
+            }
+            
+            return new Arreglo(t0, initializerList.Count);
+        }
+
+        public Tipo validarSemanticoHelper()
+        {
+            Tipo tipoArreglo;
+            Initializers tinit = initializerList[0];
+            if (tinit is VariableInitializer)
+            {
+                VariableInitializer vInit = (VariableInitializer)initializerList[0];
+
+                tipoArreglo = vInit.validarSemantico();
+
+                return tipoArreglo;
+            }
+            else if (tinit is VariableInitializerList)
+            {
+                VariableInitializerList vList = (VariableInitializerList)initializerList[0];
+
+                tipoArreglo = vList.validarSemanticoHelper();
+
+                return new Arreglo(tipoArreglo, vList.initializerList.Count);
+            }
+            else
+                throw ErrorMessage("Error en la inicializacion, tipo distinto de initializer??.");
+        }
+
+        public override string genCode()
+        {
+            return "{ initializer }";
+        }
+    }
+
+    /*public class VariableInitializerList : Initializers
     {
         List<Initializers> initializerList;
 
@@ -416,7 +316,7 @@ namespace SyntaxTree
         {
             return "{ initializer }";
         }
-    }
+    }*/
 
     #endregion
 
@@ -451,7 +351,7 @@ namespace SyntaxTree
 
         public override string genCode()
         {
-            return "FunctionDefinition :" + idFuncion + compoundStatement.genCode();
+            return "FunctionDefinition :" + idFuncion + "\n"+ compoundStatement.genCode();
         }
 
         public override void validarSemantica()
@@ -466,22 +366,7 @@ namespace SyntaxTree
 
     #region Statement
 
-    public abstract class Statement : Sentence
-    {
-        /*public Statement() { }
-        public static Statement Null = null;
-        public static Statement Enclosing = Statement.Null;
-
-        public override string genCode()
-        {
-            throw ErrorMessage("genCode().");
-        }
-
-        public override void validarSemantica()
-        {
-            throw ErrorMessage("validarSemantica().");
-        }*/
-    }
+    public abstract class Statement : Sentence { }
 
     public class StatementSequence : Statement
     {
@@ -630,6 +515,7 @@ namespace SyntaxTree
 
             if (!(t is Entero || t is Flotante || t is Booleano))
                 throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico.");
+            compoundStatement.validarSemantica();
         }
     }
 
@@ -663,6 +549,7 @@ namespace SyntaxTree
 
             if (!(t is Entero || t is Flotante || t is Booleano))
                 throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico.");
+            compoundstatement.validarSemantica();
         }
     }
 
@@ -877,7 +764,7 @@ namespace SyntaxTree
     public class Expr : Node
     {
 
-        protected Env entornoActual;
+        public Env entornoActual;
 
         public Expr()
         {
@@ -1661,7 +1548,7 @@ namespace SyntaxTree
 
     #endregion    
 
-    #region terminales : literales basicas, referencias id, miembroRegistro, indiceArreglo, functionCall    
+    #region terminales : literales basicas, referencias id, miembroRegistro, indiceArreglo, functionCall
 
     
     #region literales tipos basicos: int float, char, bool, string
@@ -1798,11 +1685,12 @@ namespace SyntaxTree
 
     public class MiembroRegistro : ReferenceAccess
     {
-        public List<ReferenceAccess> Members;
+        public ReferenceAccess member;
 
-        public MiembroRegistro(string id, List<ReferenceAccess> members): base(id)
+        public MiembroRegistro(string lex, ReferenceAccess mem)
+            : base(lex)
         {
-            Members = members;
+            member = mem;
         }
 
         public override string genCode()
@@ -1812,35 +1700,30 @@ namespace SyntaxTree
 
         public override Tipo validarSemantico()
         {
-            Tipo t_var = entornoActual.get(lexeme);
+            Tipo t = this.entornoActual.get(lexeme);
 
-            if (t_var is Registro)
+            if (t is Registro)
             {
-                Registro registro1 = (Registro)t_var;
+                Registro record = (Registro)t;
+                //return record.entornoStruct.get(member.lexeme);
+                
+                Tipo t2 = record.entornoStruct.get(member.lexeme);
 
-                if (registro1.entornoStruct.tablaSimbolos.ContainsKey(Members[0].lexeme))
+                if (t2 is Registro)
                 {
-                    if (Members.Count > 1)
-                    {
-                        Tipo t_var2 = registro1.entornoStruct.get(Members[1].lexeme);
+                    //return member.validarSemantico();
+                    //Registro record2 = (Registro)t2;
 
-                        if (t_var2 is Registro)
-                        {
-                            MiembroRegistro tmp = new MiembroRegistro(Members[1].lexeme, Members.GetRange(1, Members.Count));
-                            tmp.validarSemantico();
-                        }
-                        else
-                            throw ErrorMessage("El tipo " + lexeme + " no es de tipo struct.");
-                    }                    
-
-                    return registro1;
+                    member.entornoActual = record.entornoStruct;
+                    return member.validarSemantico();
                 }
                 else
-                    throw ErrorMessage("El campo " + Members[0].lexeme + "No existe en " + this.lexeme + ".");
+                    return t2;
             }
             else
-                throw ErrorMessage("El tipo " + lexeme + " no es de tipo struct.");
+                throw ErrorMessage("El tipo " + lexeme + " no es de tipo struct.");                
         }
+
     }
 
     public class IndiceArreglo : ReferenceAccess
@@ -1860,15 +1743,25 @@ namespace SyntaxTree
 
         public override Tipo validarSemantico()
         {
-            throw new NotImplementedException();
+            /*Tipo t = entornoActual.get(this.lexeme);
+
+            if (t is Arreglo)
+            {
+                //Arreglo array = (Arreglo)t;
+
+            }
+            else
+                throw ErrorMessage(this.lexeme + " no es de tipo arreglo.");*/
+            throw ErrorMessage("No implementado. validarSemantico()/IndiceArreglo");
+
             /*if (!Parser.tablaSimbolos.ContainsKey(this.lexeme))
-                throw new Exception("La variable" + this.lexeme + " no existe.");
+                throw new Exception("La variable" + this.lexeme + " no existe.");cc
             
             Tipo t_arreglo = Parser.tablaSimbolos[this.lexeme];
 
             if (t_arreglo is Arreglo)
             {
-                Arreglo arr = (Arreglo)t_arreglo;                
+                Arreglo arr = (Arreglo)t_arreglo;
 
                 for (int i = 0; i < IndexList.Count; i++)
                 {
@@ -1899,35 +1792,38 @@ namespace SyntaxTree
             return "LlamadaFuncion";
         }
 
+        public Tipo validarSemanticaHelper(Tipo product)
+        {
+            Product p = (Product)product;
+
+            return p.Type1;
+        }
+
         public override Tipo validarSemantico()
         {
-            throw new NotImplementedException();
-            /*Tipo t_var = Parser.tablaSimbolos[this.lexeme];
+            Tipo t = entornoActual.get(this.lexeme);
 
-            if (t_var == null)
-                throw new Exception("No existe la funcion " + this.lexeme);
-
-            if (t_var is Funcion)
+            if (t is Funcion)
             {
-                Funcion func = (Funcion)t_var;
+                Funcion func = (Funcion)t;
 
-                for (int i = 0; i < func.listaParametros.Count; i++)
+                if (listaParametros.Count == func.Parametros.Count)
                 {
-                    Product p = func.listaParametros[i];
-
-                    Tipo tipo = listaParametros[i].validarSemantico();
-
-
-                    if (!p.tipoParametro.esEquivalente(tipo))
+                    for (int x = 0; x < listaParametros.Count; x++)
                     {
-                        throw new Exception("El tipo de parametro no es correcto");
+                        Tipo t1 = listaParametros[x].validarSemantico();
+                        Tipo t2 = func.Parametros[x];
+                        if (!t1.esEquivalente(t2))
+                            throw ErrorMessage("Tipo de parametro incorrecto.");
                     }
                 }
+                else
+                    throw ErrorMessage("Cantidad erronea de parametros en la llamada de funcion " + this.lexeme + ".");
 
-                return func.tipoRetorno;
+                    return func.tipoRetorno;
             }
             else
-                throw new Exception( this.lexeme +  " no es de tipo Funcion");*/
+                throw ErrorMessage(this.lexeme + " no es una Funcion.");            
         }
     }
 
@@ -1935,4 +1831,199 @@ namespace SyntaxTree
 
     #endregion
 
+    #region tipo
+
+    public abstract class Tipo
+    {
+        public abstract bool esEquivalente(Tipo t);
+    }
+
+    public class Entero : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Entero;
+        }
+    }
+
+    public class Flotante : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Flotante;
+        }
+    }
+
+    public class Caracter : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Caracter;
+        }
+    }
+
+    public class Cadena : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Cadena;
+        }
+    }
+
+    public class Booleano : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Booleano;
+        }
+    }
+
+    public class Void : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Void;
+        }
+    }
+
+    public class Enumeracion : Tipo
+    {
+        public override bool esEquivalente(Tipo t)
+        {
+            return t is Enumeracion;
+        }
+    }
+
+    public class Registro : Tipo
+    {
+        public Env entornoStruct;
+
+        public Registro(Env entorno)
+        {
+            entornoStruct = entorno;
+        }
+
+        public override bool esEquivalente(Tipo t)
+        {
+            if (t is Registro)
+            {
+                Registro r = (Registro)t;
+
+                if (entornoStruct.tablaSimbolos.Count == r.entornoStruct.tablaSimbolos.Count)
+                {
+                    for (int i = 0; i < entornoStruct.tablaSimbolos.Count; i++)
+                    {
+                        Tipo miCampo = entornoStruct.tablaSimbolos.ElementAt(i).Value;
+                        Tipo otroCampo = r.entornoStruct.tablaSimbolos.ElementAt(i).Value;
+
+                        if (!(miCampo.esEquivalente(otroCampo)))
+                            return false;
+                    }
+                    return true;
+                }
+                else
+                    return false;
+            }
+            else
+                return false;
+        }
+    }
+
+    public class Arreglo : Tipo
+    {
+        public Tipo tipoArreglo;
+        //public Expr size;
+        public int size;
+
+        public Arreglo(Tipo tipo, int tam)
+        {
+            tipoArreglo = tipo;
+            size = tam;
+        }
+
+        public override bool esEquivalente(Tipo t)
+        {
+            if (t is Arreglo)
+            {
+                Arreglo array = (Arreglo)t;
+
+                if (!tipoArreglo.esEquivalente(array.tipoArreglo))
+                    return false;
+
+                return size == array.size;
+            }
+            else
+                return false;
+        }
+    }
+
+    public class Funcion : Tipo
+    {
+        public Tipo tipoRetorno;
+        public List<Tipo> Parametros;
+
+        public Funcion(Tipo retorno, List<Tipo> parametros)
+        {
+            tipoRetorno = retorno;
+            Parametros = parametros;
+        }
+
+        public override bool esEquivalente(Tipo t)
+        {
+            if (t is Funcion)
+            {
+                Funcion func = (Funcion)t;
+
+                if (!tipoRetorno.esEquivalente(func.tipoRetorno))
+                    return false;
+                
+                return true;
+                //return Parametros.esEquivalente(func.Parametros);
+            }
+            else
+                return false;
+        }
+    }
+
+    public class Product : Tipo
+    {
+        public Tipo Type1, Type2;
+
+        public Product(Tipo type1, Tipo type2)
+        {
+            Type1 = type1;
+            Type2 = type2;
+        }
+
+        public override bool esEquivalente(Tipo t)
+        {
+            if (t is Product)
+            {
+                Product p = (Product)t;
+
+                if (!Type1.esEquivalente(p.Type1))
+                    return false;
+
+                if (!Type2.esEquivalente(p.Type2))
+                    return false;
+
+                return true;
+            }
+            else
+                return false;
+        }
+    }
+
+    #endregion
+    
+    #region valor
+
+    public abstract class Valor
+    {
+        public abstract Valor clone();
+    }
+
+     
+    
+    #endregion
 }
