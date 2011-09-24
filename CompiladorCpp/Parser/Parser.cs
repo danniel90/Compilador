@@ -13,20 +13,26 @@ namespace Syntax
     public class Parser
     {
         #region variables
+        
         public Token currentToken;
         public Lexer lex;
 
-        public static Env entorno;
+        public static EnvTypes entornoTipos;
+        public static EnvValues entornoValores; 
+
         public static Sentence funcionActual = null;
         public static Sentence cicloActual = null;
         public static Sentence main = null;
+
         #endregion
 
         #region constructores
+
         public Parser(string path)
         {
             lex = new Lexer(path);
-            entorno = new Env(null);
+            entornoTipos = new EnvTypes(null);
+            entornoValores = new EnvValues(null);
         }
         #endregion
 
@@ -39,6 +45,8 @@ namespace Syntax
 
             Console.WriteLine(programa.genCode() + "\n\n");
             programa.validarSemantica();
+            programa.interpretar();
+            int x = 0;
         }
 
         Sentence program()
@@ -124,7 +132,7 @@ namespace Syntax
 
                     case TokenType.VOID:
                         string id = void_declaration();
-                        return function_declaration(null, id);
+                        return function_declaration(new SyntaxTree.Void(), id);
 
                     default:
                         return null;
@@ -141,11 +149,10 @@ namespace Syntax
         Sentence variable_declaration()
         {
             Tipo tipoVariables = variable_type();//tipo basico para todas las variables, si hay mas
-
-            //Tipo tipoVariable = tipoVariables;            
+            
             string idVariable = direct_variable_declarator();
             Tipo tipoVariable = variable_array(tipoVariables);
-            int tmp = 0;
+
             if (peek("("))
                 return function_declaration(tipoVariable, idVariable);
             else
@@ -192,12 +199,7 @@ namespace Syntax
 
         string direct_variable_declarator()
         {
-            string id = variable_name();
-            
-            /*if (peek("["))
-                tipoVariable = variable_array(tipoVariable);*/
-
-            return id;
+            return variable_name();
         }
 
         string variable_name()
@@ -230,7 +232,7 @@ namespace Syntax
         {
             primerVariable.initialization = variable_initializer();//primer variable viene sin inicializador
 
-            entorno.put(primerVariable.declaration.id, primerVariable.declaration.tipo);//tablasimbolos
+            entornoTipos.put(primerVariable.declaration.id, primerVariable.declaration.tipo);//tablasimbolos
 
             VariableDeclaration listaDeclaracionVariables = variable_declarators(primerVariable, tipoVariables);
 
@@ -242,12 +244,12 @@ namespace Syntax
             if (peek(","))
             {
                 match(",");
-                //Tipo tipoVariable = tipoVariables;                
+          
                 string idVariable = direct_variable_declarator();
                 Tipo tipoVariable = variable_array(tipoVariables);
                 Initializers init = variable_initializer();
 
-                entorno.put(idVariable, tipoVariable);//tablasimbolos
+                entornoTipos.put(idVariable, tipoVariable);//tablasimbolos
 
                 VariableSubDeclarator variableActual = new VariableSubDeclarator(tipoVariable, idVariable);                
                 VariableDeclarator actualDeclaration = new VariableDeclarator(variableActual, init);
@@ -324,8 +326,12 @@ namespace Syntax
 
         Sentence function_declaration(Tipo retorno, string id)
         {
-            Env savedEnv = entorno;
-            entorno = new Env(entorno);
+            EnvTypes savedEnvTypes = entornoTipos;
+            entornoTipos = new EnvTypes(entornoTipos);
+
+            EnvValues savedEnvValues = entornoValores;
+            entornoValores = new EnvValues(entornoValores);
+
             match("(");
             List<Tipo> paramsTypeList = parameter_type_list();
             match(")");            
@@ -336,11 +342,15 @@ namespace Syntax
             Sentence compoundStmnt = function_definition();
             
             funcDefinition.init(id, retorno, compoundStmnt);
-            entorno = savedEnv;
+            entornoTipos = savedEnvTypes;
+            entornoValores = savedEnvValues;
 
             //if (paramsTypeList != null)
             Funcion funcion = new Funcion(retorno, paramsTypeList);
-            entorno.put(id, funcion);
+            entornoTipos.put(id, funcion);
+
+            ValorFuncion funcionVal = new ValorFuncion(funcDefinition);
+            entornoValores.put(id, funcionVal);
 
             funcionActual = null;
 
@@ -365,8 +375,10 @@ namespace Syntax
                 string id = parameter_name();
                 Tipo tipoParam = variable_array(tipo);
                 
-                entorno.put(id, tipoParam);
+                entornoTipos.put(id, tipoParam);
                 paramsList.Add(tipoParam);
+
+                entornoValores.put(id, null);
                 
                 parameter_type_listP(paramsList);
                 return paramsList;
@@ -436,8 +448,10 @@ namespace Syntax
                 string id = parameter_name();
                 Tipo actualParameter = variable_array(actualType);
                 
-                entorno.put(id, actualParameter);                
+                entornoTipos.put(id, actualParameter);                
                 Parameters.Add(actualParameter);
+
+                entornoValores.put(id, null);
                 
                 parameter_type_listP(Parameters);
             }            
@@ -518,10 +532,13 @@ namespace Syntax
 
                 case TokenType.STRUCT:
                     string strId = struct_declarator();
-                    Tipo varRecord = entorno.get(strId);
+                    
+                    Tipo varRecord = entornoTipos.get(strId);                    
+
                     string strVarName = currentToken.Lexema;
                     match(TokenType.ID);
-                    entorno.put(strVarName, varRecord);
+                    entornoTipos.put(strVarName, varRecord);                    
+
                     StructVariableDeclaration strVarDec = new StructVariableDeclaration(strId, strVarName, varRecord);
                     match(";");
                     return strVarDec;
@@ -569,8 +586,7 @@ namespace Syntax
         Sentence declaration_statement()
         {
             Tipo tipoVariables = variable_type();//tipo basico para todas las variables, si hay mas
-
-            //Tipo tipoVariable = tipoVariables;            
+            
             string idVariable = direct_variable_declarator();
             Tipo tipoVariable = variable_array(tipoVariables);
             
@@ -598,15 +614,15 @@ namespace Syntax
 
         Sentence if_statement()
         {
-            Env savedEnv = entorno;
-            entorno = new Env(entorno);
+            EnvTypes savedEnvTypes = entornoTipos;
+            entornoTipos = new EnvTypes(entornoTipos);
             match("if"); 
             match("(");
             Expr expresion = expr();           
             match(")");
             Sentence trueBlock = if_compound_statement();
 
-            entorno = savedEnv;
+            entornoTipos = savedEnvTypes;
             return elseif_(expresion, trueBlock);
         }
 
@@ -622,12 +638,12 @@ namespace Syntax
         {
             if (peek("else"))
             {
-                Env savedEnv = entorno;
-                entorno = new Env(entorno);
+                EnvTypes savedEnvTypes = entornoTipos;
+                entornoTipos = new EnvTypes(entornoTipos);
                 match("else");
 
                 Sentence falseBLock = elseif_P(condicion, trueBlock);
-                entorno = savedEnv;
+                entornoTipos = savedEnvTypes;
                 return new IfElseStatement(condicion, trueBlock, falseBLock);                
             }
             else
@@ -649,14 +665,14 @@ namespace Syntax
         Sentence return_statement()
         {
             match("return");
-            Sentence expresion = return_statementP();
+            Expr expresion = return_statementP();
 
             ReturnStatement returnStmnt = new ReturnStatement(expresion);
             funcionActual = null;
             return returnStmnt;
         }
 
-        Sentence return_statementP()
+        Expr return_statementP()
         {
             switch (currentToken.Tipo)
             {
@@ -666,7 +682,7 @@ namespace Syntax
                 case TokenType.REAL_LITERAL:
                 case TokenType.INTEGER_LITERAL:
                 case TokenType.LEFT_PARENTHESIS:
-                    Sentence expresion = expression_statement();
+                    Expr expresion = expr();
                     return expresion;
 
                 default:
@@ -693,8 +709,8 @@ namespace Syntax
 
         Sentence while_statement()
         {
-            Env savedEnv = entorno;
-            entorno = new Env(entorno);
+            EnvTypes savedEnvTypes = entornoTipos;
+            entornoTipos = new EnvTypes(entornoTipos);
 
             WhileStatement whileStmnt = new WhileStatement();
             Sentence cicloAnterior = cicloActual;
@@ -709,7 +725,7 @@ namespace Syntax
             whileStmnt.WhileInit(expresion, ifCpStmnt);
             cicloActual = cicloAnterior;
 
-            entorno = savedEnv;
+            entornoTipos = savedEnvTypes;
             return whileStmnt;
         }
 
@@ -719,8 +735,8 @@ namespace Syntax
 
         Sentence do_while()
         {
-            Env savedEnv = entorno;
-            entorno = new Env(entorno);
+            EnvTypes savedEnvTypes = entornoTipos;
+            entornoTipos = new EnvTypes(entornoTipos);
 
             DoWhileStatement doWhileStmnt = new DoWhileStatement();
             Sentence cicloAnterior = cicloActual;
@@ -737,7 +753,7 @@ namespace Syntax
             doWhileStmnt.DoWhileInit(expresion, stmnt);
             cicloActual = cicloAnterior;
 
-            entorno = savedEnv;
+            entornoTipos = savedEnvTypes;
             return doWhileStmnt;
         }
 
@@ -747,8 +763,8 @@ namespace Syntax
 
         Sentence for_statement()
         {
-            Env savedEnv = entorno;
-            entorno = new Env(entorno);
+            EnvTypes savedEnvTypes = entornoTipos;
+            entornoTipos = new EnvTypes(entornoTipos);
 
             ForStatement forStmnt = new ForStatement();
             Sentence cicloAnterior = cicloActual;
@@ -768,7 +784,7 @@ namespace Syntax
             forStmnt.ForInit(forInitialization, forControl, forIteration, compoundStatement);
             cicloActual = cicloAnterior;
 
-            entorno = savedEnv;
+            entornoTipos = savedEnvTypes;
             return forStmnt;
         }
 
@@ -854,20 +870,20 @@ namespace Syntax
             if (peek("{"))
             {
                 match("{");
-                Env savedEnv = entorno;
-                entorno = new Env(null);
+                EnvTypes savedEnvTypes = entornoTipos;
+                entornoTipos = new EnvTypes(null);
                 List<VariableDeclarator> varsDec = enum_initializer_list();
                 match("}");
 
-                EnumerationDeclaration enumDeclaration = new EnumerationDeclaration(enumName, varsDec, entorno);
-                entorno = savedEnv;
-                entorno.put(enumName, new Enumeracion());
+                EnumerationDeclaration enumDeclaration = new EnumerationDeclaration(enumName, varsDec, entornoTipos);
+                entornoTipos = savedEnvTypes;
+                entornoTipos.put(enumName, new Enumeracion());
 
                 return enumDeclaration;
             }
             else
             {
-                Tipo varEnum = entorno.get(enumName);
+                Tipo varEnum = entornoTipos.get(enumName);
                 string enumVarName = currentToken.Lexema;
                 match(TokenType.ID);
 
@@ -946,29 +962,42 @@ namespace Syntax
         {
             if (peek("{"))
             {
-                match("{");                
-                Env savedEnv = entorno;
-                entorno = new Env(null);
-                Sentence strDec = variable_declaration_list(savedEnv);
+                match("{");
+                EnvTypes savedEnvTypes = entornoTipos;
+                entornoTipos = new EnvTypes(null);
+
+                EnvValues savedEnvValues = entornoValores;
+                entornoValores = new EnvValues(null);
+
+                Sentence strVarDecs = variable_declaration_list(savedEnvTypes);
                 match("}");
 
-                Registro record = new Registro(entorno);                
-                entorno = savedEnv;
-                entorno.put(structName, record);
-                return strDec;
+                Registro record = new Registro(entornoTipos);
+                ValorRegistro Valrec = new ValorRegistro();
+                Valrec.valor = entornoValores;
+
+                entornoTipos = savedEnvTypes;
+                entornoTipos.put(structName, record);
+
+                entornoValores = savedEnvValues;                
+                entornoValores.put(structName, Valrec);
+
+                return strVarDecs;
             }
             else
             {
-                Tipo varRecord = entorno.get(structName);
-                string strVarName = currentToken.Lexema;
-                match(TokenType.ID);
+                Tipo varRecord = entornoTipos.get(structName);
+                Valor valRecord = entornoValores.get(structName);
 
-                entorno.put(strVarName, varRecord);
+                string strVarName = variable_name();
+
+                entornoTipos.put(strVarName, varRecord);
+                entornoValores.put(strVarName, valRecord);
                 return new StructVariableDeclaration(structName, strVarName, varRecord);
             }
         }
 
-        Sentence variable_declaration_list(Env savedEnv)
+        Sentence variable_declaration_list(EnvTypes savedEnvTypes)
         {
             switch (currentToken.Tipo)
             {
@@ -977,32 +1006,34 @@ namespace Syntax
                 case TokenType.CHAR:
                 case TokenType.FLOAT:
                 case TokenType.INT:
-                    Tipo t = variable_type();
-                    string id = direct_variable_declarator();
-                    Tipo t2 = variable_array(t);
-                    entorno.put(id, t2);
+                    Tipo tipoVariables = variable_type();
+                    string idVariable = direct_variable_declarator();
+                    Tipo tipoVariable = variable_array(tipoVariables);                    
                     match(";");
 
-                    StructDeclaration strDec = new StructDeclaration();
+                    VariableSubDeclarator primerVariable = new VariableSubDeclarator(tipoVariable, idVariable);
+                    VariableDeclarator primerDeclaracionVariable = new VariableDeclarator(primerVariable, null);
                     
-                    return variable_declaration_listP(strDec, savedEnv);
+                    entornoTipos.put(idVariable, tipoVariable);
+                    return variable_declaration_listP(primerDeclaracionVariable, savedEnvTypes);
                     
                 case TokenType.STRUCT:
                     string structName = struct_declarator();
-                    string structVarName = currentToken.Lexema;
-                    Tipo varRecord = savedEnv.get(structName);
-                    match(TokenType.ID); 
+                    Tipo varRecord = savedEnvTypes.get(structName);
+                    string structVarName = variable_name();
                     match(";");
-                    entorno.put(structVarName, varRecord);
+                    
                     StructVariableDeclaration strVarDec = new StructVariableDeclaration(structName, structVarName, varRecord);
-                    return variable_declaration_listP(strVarDec, savedEnv);
+
+                    entornoTipos.put(structVarName, varRecord);
+                    return variable_declaration_listP(strVarDec, savedEnvTypes);
                 
                 default:
                     throw new Exception("Error en la declaracion de variables de struct linea: " + Lexer.line + " columna: " + Lexer.column + " currenttoken = " + currentToken.Lexema);
             }
         }
 
-        Sentence variable_declaration_listP(Sentence strDec, Env savedEnv)
+        Sentence variable_declaration_listP(Sentence primerDeclaracionVariable, EnvTypes savedEnvTypes)
         {            
             switch (currentToken.Tipo)
             {
@@ -1011,30 +1042,32 @@ namespace Syntax
                 case TokenType.CHAR:
                 case TokenType.FLOAT:
                 case TokenType.INT:
-                    Tipo t = variable_type();
-                    string id = direct_variable_declarator();
-                    Tipo t2 = variable_array(t);
-                    entorno.put(id, t2);
-                    
+                    Tipo tipoVariables = variable_type();
+                    string idVariable = direct_variable_declarator();
+                    Tipo tipoVariable = variable_array(tipoVariables);
                     match(";");
 
-                    StructDeclaration structDec = new StructDeclaration();
-                    SentenceSenquence stSeq = new SentenceSenquence(strDec, structDec);
-                    return variable_declaration_listP(stSeq, savedEnv);
+                    VariableSubDeclarator segundaVariable = new VariableSubDeclarator(tipoVariable, idVariable);
+                    VariableDeclarator segundaDeclaracionVariable = new VariableDeclarator(segundaVariable, null);                                        
+                    
+                    SentenceSenquence stSeq = new SentenceSenquence(primerDeclaracionVariable, segundaDeclaracionVariable);
+                    entornoTipos.put(idVariable, tipoVariable);
+                    return variable_declaration_listP(stSeq, savedEnvTypes);
                 
                 case TokenType.STRUCT:
                     string structName = struct_declarator();
-                    string structVarName = currentToken.Lexema;
-                    Tipo varRecord = savedEnv.get(structName);
-                    match(TokenType.ID);
+                    Tipo varRecord = savedEnvTypes.get(structName);
+                    string structVarName = variable_name();
                     match(";");
-                    entorno.put(structVarName, varRecord);
+                    
                     StructVariableDeclaration strVarDec = new StructVariableDeclaration(structName, structVarName, varRecord);
-                    SentenceSenquence stSeq2 = new SentenceSenquence(strDec, strVarDec);
-                    return variable_declaration_listP(stSeq2, savedEnv);
+                    
+                    SentenceSenquence stSeq2 = new SentenceSenquence(primerDeclaracionVariable, strVarDec);
+                    entornoTipos.put(structVarName, varRecord);
+                    return variable_declaration_listP(stSeq2, savedEnvTypes);
 
                 default:
-                    return strDec;//null
+                    return primerDeclaracionVariable;//null
             }            
         }
 

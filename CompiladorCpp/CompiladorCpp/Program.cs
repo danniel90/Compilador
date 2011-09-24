@@ -21,11 +21,13 @@ namespace CompiladorCpp
                 {
                     Console.WriteLine("{0} : {1} \t|| Line = {2} Column = {3}", t.Lexema, t.Tipo, lex.line, lex.column);
                     t = lex.nextToken();
-                }*/
-                Parser parser = new Parser("semantic.txt");
+                }*/ 
+///*
+                Parser parser = new Parser("intrepretation.txt");
                 parser.compile();
                 
                 Console.WriteLine("\n\nFIN");
+//*/
                 Console.ReadKey();
             }
             catch (Exception ex)

@@ -1,0 +1,10 @@
+
+int foo(){
+	int tmp = 1;
+	return tmp;
+}
+
+int main(){
+	int ent = 1;
+	int ent2 = ent + 3;
+}

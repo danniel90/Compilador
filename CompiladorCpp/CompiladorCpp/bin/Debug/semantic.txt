@@ -1,0 +1,100 @@
+string str;
+bool b;
+
+string a = "aasasas";
+
+//const 
+int entero[23], entero2,entero3[2], entero4;
+
+
+int func3(int a, int b, int c){
+ 	entero4 = 2;
+	str = "s";
+	a = 1;
+}
+
+struct lol
+{
+	int b;
+	char o;
+};
+
+struct stra{
+	int a;
+	int b[1];
+	char s;
+	struct lol xd;
+};
+
+//struct stra as;
+
+enum enumerador {suba, a = 1,b = 3+2,c = 3};
+
+int arr[2][2] = {{1,1},{1,2}};
+int f = 2;
+int e = 12/1 + entero4 + (f*3/4);
+int ent2 = 3 + 22;
+
+
+int func(){
+	int tmp = 2;
+//	1+2 = 3;
+}
+
+
+
+struct foo
+{
+	int a;
+	int b[1];
+	char s;
+	struct stra as;
+};
+
+int main(){
+	e = func3(1,2,3);
+	int var1;
+	int var2 = 2 + var1;
+	string var3 = "hola";	
+
+/*	
+	++var1;
+	--var2;	
+
+	bool ba, bb,bc;
+
+	if ((ba || bc) && (ba || bc)){
+		int xyz = 2 + var1;
+	} else if (var1 == 2){
+		var2--;
+	} else if (var3 >s= "g"){
+		var1++;
+		if (true){
+			var2--;
+		}
+	} else
+		var3 = "2";
+
+	for (int i = 2; i < 1 ; i += 2){
+		var3+="4";
+		continue;
+	}*/
+
+	do{
+		struct foo bar;
+//		++var1;
+//		--var2;
+		var1 = bar.as.xd.b;
+		break;
+	}
+	while (var2 > 100);
+	
+	var1++;
+
+
+//	return;
+//	return var1;
+//	return var2++;
+//	return 1+1;
+	return var1 * 2;
+}
