@@ -57,7 +57,6 @@ namespace Syntax
             programa.main = main;
 
             match("\0");
-            //return sentencias;
             return programa;
         }
 
@@ -74,6 +73,10 @@ namespace Syntax
                 case TokenType.CONST:
                 case TokenType.STRUCT:
                 case TokenType.ENUM:
+                    
+                case TokenType.CIN:
+                case TokenType.COUT:
+
                     Sentence sentencia = sentence();
                     return global_sentenceP(sentencia);
 
@@ -95,10 +98,13 @@ namespace Syntax
                 case TokenType.CONST:
                 case TokenType.STRUCT:
                 case TokenType.ENUM:
+                
+                case TokenType.CIN:
+                case TokenType.COUT:
                     Sentence sentencia2 = sentence();
                     SentenceSenquence sentSequence = new SentenceSenquence(sentencia1, sentencia2);
-                    return global_sentenceP(sentSequence);
-                
+                    return global_sentenceP(sentSequence);                
+
                 default:
                     return sentencia1;//null
             }
@@ -133,6 +139,16 @@ namespace Syntax
                     case TokenType.VOID:
                         string id = void_declaration();
                         return function_declaration(new SyntaxTree.Void(), id);
+
+                    case TokenType.CIN:
+                        Sentence sCin = cin();
+                        match(";");
+                        return sCin;
+
+                    case TokenType.COUT:
+                        Sentence sCout = cout();
+                        match(";");
+                        return sCout;
 
                     default:
                         return null;
@@ -345,7 +361,6 @@ namespace Syntax
             entornoTipos = savedEnvTypes;
             entornoValores = savedEnvValues;
 
-            //if (paramsTypeList != null)
             Funcion funcion = new Funcion(retorno, paramsTypeList);
             entornoTipos.put(id, funcion);
 
@@ -488,6 +503,10 @@ namespace Syntax
         {
             switch (currentToken.Tipo)
             {
+                case TokenType.SEMICOLON:
+                case TokenType.CIN:
+                case TokenType.COUT:
+
                 case TokenType.STRING:
                 case TokenType.BOOL:
                 case TokenType.CHAR:
@@ -533,15 +552,31 @@ namespace Syntax
                 case TokenType.STRUCT:
                     string strId = struct_declarator();
                     
-                    Tipo varRecord = entornoTipos.get(strId);                    
+                    Tipo varRecord = entornoTipos.get(strId);
+                    Valor valRecord = entornoValores.get(strId);
 
                     string strVarName = currentToken.Lexema;
                     match(TokenType.ID);
-                    entornoTipos.put(strVarName, varRecord);                    
+                    entornoTipos.put(strVarName, varRecord);
 
-                    StructVariableDeclaration strVarDec = new StructVariableDeclaration(strId, strVarName, varRecord);
+                    StructVariableDeclaration strVarDec = new StructVariableDeclaration(strId, strVarName, varRecord, valRecord);
                     match(";");
                     return strVarDec;
+
+                case TokenType.ENUM:
+                    Sentence sentence = enum_declaration();
+                    match(";");
+                    return sentence;
+                    /*string enumName = enum_declarator();
+                    Tipo varEnum = entornoTipos.get(enumName);
+                    Valor valEnum = entornoValores.get(enumName);
+
+                    string enumVarName = currentToken.Lexema;
+                    match(TokenType.ID);
+
+                    EnumerationVariableDeclaration enumVarDeclaration = new EnumerationVariableDeclaration(enumName, enumVarName, varEnum, valEnum);
+                    entornoTipos.put(enumVarName, varEnum);
+                    return enumVarDeclaration;*/
 
                 case TokenType.DECREMENT:
                 case TokenType.INCREMENT:
@@ -575,13 +610,33 @@ namespace Syntax
                 case TokenType.RETURN:
                     Sentence ret = return_statement(); 
                     match(";");
-                    return ret;
+                    return ret;                
+
+                case TokenType.CIN:
+                    Sentence sCin = cin();
+                    match(";");
+                    return sCin;
+
+                case TokenType.COUT:
+                    Sentence sCout = cout();
+                    match(";");
+                    return sCout;
+
+                /*case TokenType.SEMICOLON:
+                    Sentence empty = new EmptySentence();
+                    match(";");
+                    return empty;*/
                 
                 default:
-                    return null;
+                    //return null;
+                    Sentence empty = new EmptySentence();
+                    match(";");
+                    return empty;
             }
             //null
         }
+
+        #region declarationStatement
 
         Sentence declaration_statement()
         {
@@ -597,8 +652,10 @@ namespace Syntax
             VariableDeclarations variableDeclarations = variable_declarator(primerDeclaracionVariable, tipoVariables);//para las variables que siguen            
 
             return variableDeclarations;
-        }        
-        
+        }
+
+        #endregion
+
         #region expression_statement
 
         Sentence expression_statement()
@@ -616,13 +673,18 @@ namespace Syntax
         {
             EnvTypes savedEnvTypes = entornoTipos;
             entornoTipos = new EnvTypes(entornoTipos);
-            match("if"); 
+            
+            EnvValues savedEnvValues = entornoValores;
+            entornoValores = new EnvValues(entornoValores);
+
+            match("if");
             match("(");
-            Expr expresion = expr();           
+            Expr expresion = expr();
             match(")");
             Sentence trueBlock = if_compound_statement();
 
             entornoTipos = savedEnvTypes;
+            entornoValores = savedEnvValues;
             return elseif_(expresion, trueBlock);
         }
 
@@ -637,13 +699,10 @@ namespace Syntax
         Sentence elseif_(Expr condicion, Sentence trueBlock)
         {
             if (peek("else"))
-            {
-                EnvTypes savedEnvTypes = entornoTipos;
-                entornoTipos = new EnvTypes(entornoTipos);
+            {                
                 match("else");
 
                 Sentence falseBLock = elseif_P(condicion, trueBlock);
-                entornoTipos = savedEnvTypes;
                 return new IfElseStatement(condicion, trueBlock, falseBLock);                
             }
             else
@@ -653,9 +712,23 @@ namespace Syntax
         Sentence elseif_P(Expr condicion, Sentence trueBlock)
         {
             if (peek("if"))
+            {
                 return if_statement();
+            }
             else
-                return if_compound_statement();
+            {
+                EnvTypes savedEnvTypes = entornoTipos;
+                entornoTipos = new EnvTypes(entornoTipos);
+
+                EnvValues savedEnvValues = entornoValores;
+                entornoValores = new EnvValues(entornoValores);
+
+                Sentence falseBLock = if_compound_statement();
+                
+                entornoTipos = savedEnvTypes;
+                entornoValores = savedEnvValues;
+                return falseBLock;
+            }
         }
 
         #endregion
@@ -668,7 +741,7 @@ namespace Syntax
             Expr expresion = return_statementP();
 
             ReturnStatement returnStmnt = new ReturnStatement(expresion);
-            funcionActual = null;
+            //funcionActual = null;
             return returnStmnt;
         }
 
@@ -712,6 +785,9 @@ namespace Syntax
             EnvTypes savedEnvTypes = entornoTipos;
             entornoTipos = new EnvTypes(entornoTipos);
 
+            EnvValues savedEnvValues = entornoValores;
+            entornoValores = new EnvValues(entornoValores);
+
             WhileStatement whileStmnt = new WhileStatement();
             Sentence cicloAnterior = cicloActual;
             cicloActual = whileStmnt;
@@ -726,6 +802,7 @@ namespace Syntax
             cicloActual = cicloAnterior;
 
             entornoTipos = savedEnvTypes;
+            entornoValores = savedEnvValues;
             return whileStmnt;
         }
 
@@ -737,6 +814,9 @@ namespace Syntax
         {
             EnvTypes savedEnvTypes = entornoTipos;
             entornoTipos = new EnvTypes(entornoTipos);
+
+            EnvValues savedEnvValues = entornoValores;
+            entornoValores = new EnvValues(entornoValores);
 
             DoWhileStatement doWhileStmnt = new DoWhileStatement();
             Sentence cicloAnterior = cicloActual;
@@ -754,6 +834,7 @@ namespace Syntax
             cicloActual = cicloAnterior;
 
             entornoTipos = savedEnvTypes;
+            entornoValores = savedEnvValues;
             return doWhileStmnt;
         }
 
@@ -765,6 +846,9 @@ namespace Syntax
         {
             EnvTypes savedEnvTypes = entornoTipos;
             entornoTipos = new EnvTypes(entornoTipos);
+
+            EnvValues savedEnvValues = entornoValores;
+            entornoValores = new EnvValues(entornoValores);
 
             ForStatement forStmnt = new ForStatement();
             Sentence cicloAnterior = cicloActual;
@@ -785,6 +869,7 @@ namespace Syntax
             cicloActual = cicloAnterior;
 
             entornoTipos = savedEnvTypes;
+            entornoValores = savedEnvValues;
             return forStmnt;
         }
 
@@ -869,58 +954,76 @@ namespace Syntax
         {
             if (peek("{"))
             {
-                match("{");
                 EnvTypes savedEnvTypes = entornoTipos;
-                entornoTipos = new EnvTypes(null);
-                List<VariableDeclarator> varsDec = enum_initializer_list();
+                entornoTipos = new EnvTypes(entornoTipos);
+
+                EnvValues savedEnvValues = entornoValores;
+                entornoValores = new EnvValues(null);
+
+                match("{");
+                List<VariableDeclarator> varsDec = enum_initializer_list(savedEnvValues, savedEnvTypes);
                 match("}");
 
-                EnumerationDeclaration enumDeclaration = new EnumerationDeclaration(enumName, varsDec, entornoTipos);
-                entornoTipos = savedEnvTypes;
-                entornoTipos.put(enumName, new Enumeracion());
+                EnumerationDeclaration enumDeclaration = new EnumerationDeclaration(enumName, varsDec, savedEnvValues);
+                ValorEnumeracion valEnum = new ValorEnumeracion();
+                Enumeracion varEnum = new Enumeracion(entornoTipos);
+                valEnum.valor = entornoValores;
 
+                entornoTipos = savedEnvTypes;
+                entornoTipos.put(enumName, varEnum);
+
+                entornoValores = savedEnvValues;
+                entornoValores.put(enumName, valEnum);
                 return enumDeclaration;
             }
             else
             {
                 Tipo varEnum = entornoTipos.get(enumName);
+                Valor valEnum = entornoValores.get(enumName);
+
                 string enumVarName = currentToken.Lexema;
                 match(TokenType.ID);
 
-                EnumerationVariableDeclaration enumVarDeclaration = new EnumerationVariableDeclaration(enumName, enumVarName, varEnum);
-
+                EnumerationVariableDeclaration enumVarDeclaration = new EnumerationVariableDeclaration(enumName, enumVarName, varEnum, valEnum);
+                entornoTipos.put(enumVarName, varEnum);
                 return enumVarDeclaration;
             }
         }
 
-        List<VariableDeclarator> enum_initializer_list()
+        List<VariableDeclarator> enum_initializer_list(EnvValues savedEnvValues, EnvTypes savedEnvTypes)
         {
             List<VariableDeclarator> varDecList = new List<VariableDeclarator>();
-            VariableDeclarator varDec = enum_constant_expression();
+            VariableDeclarator varDec = enum_constant_expression(savedEnvValues, savedEnvTypes);
             varDecList.Add(varDec);
-            enum_initializer_listP(varDecList);
+            enum_initializer_listP(varDecList, savedEnvValues, savedEnvTypes);
             return varDecList;
         }
 
-        void enum_initializer_listP(List<VariableDeclarator> vars)
+        void enum_initializer_listP(List<VariableDeclarator> vars, EnvValues savedEnvValues, EnvTypes savedEnvTypes)
         {
             if (peek(","))
             {
                 match(",");
-                VariableDeclarator varDec = enum_constant_expression();
+                VariableDeclarator varDec = enum_constant_expression(savedEnvValues, savedEnvTypes);
                 vars.Add(varDec);
-                enum_initializer_listP(vars);
+                enum_initializer_listP(vars, savedEnvValues, savedEnvTypes);
             }
             //null
         }
 
-        VariableDeclarator enum_constant_expression()
+        VariableDeclarator enum_constant_expression(EnvValues savedEnvValues, EnvTypes savedEnvTypes)
         {
             string varName = variable_name();
+
+            EnvValues savedEnvValues2 = entornoValores;
+            entornoValores = savedEnvValues;
             VariableInitializer varInit = enum_constant_expressionP();
+            entornoValores = savedEnvValues2;
 
-            VariableSubDeclarator varSubDec = new VariableSubDeclarator(new Enumeracion(), varName);
+            VariableSubDeclarator varSubDec = new VariableSubDeclarator(new Entero(), varName);
 
+            entornoTipos.put(varName, new Entero());
+            savedEnvTypes.put(varName, new Entero());
             VariableDeclarator varDeclarator = new VariableDeclarator(varSubDec, varInit);
             return varDeclarator;
         }
@@ -969,7 +1072,7 @@ namespace Syntax
                 EnvValues savedEnvValues = entornoValores;
                 entornoValores = new EnvValues(null);
 
-                Sentence strVarDecs = variable_declaration_list(savedEnvTypes);
+                Sentence strVarDecs = variable_declaration_list(savedEnvTypes, savedEnvValues);
                 match("}");
 
                 Registro record = new Registro(entornoTipos);
@@ -992,12 +1095,12 @@ namespace Syntax
                 string strVarName = variable_name();
 
                 entornoTipos.put(strVarName, varRecord);
-                entornoValores.put(strVarName, valRecord);
-                return new StructVariableDeclaration(structName, strVarName, varRecord);
+                //entornoValores.put(strVarName, valRecord);
+                return new StructVariableDeclaration(structName, strVarName, varRecord, valRecord);
             }
         }
 
-        Sentence variable_declaration_list(EnvTypes savedEnvTypes)
+        Sentence variable_declaration_list(EnvTypes savedEnvTypes, EnvValues savedEnvValues)
         {
             switch (currentToken.Tipo)
             {
@@ -1008,32 +1111,48 @@ namespace Syntax
                 case TokenType.INT:
                     Tipo tipoVariables = variable_type();
                     string idVariable = direct_variable_declarator();
-                    Tipo tipoVariable = variable_array(tipoVariables);                    
+                    Tipo tipoVariable = variable_array(tipoVariables);
                     match(";");
 
                     VariableSubDeclarator primerVariable = new VariableSubDeclarator(tipoVariable, idVariable);
                     VariableDeclarator primerDeclaracionVariable = new VariableDeclarator(primerVariable, null);
                     
                     entornoTipos.put(idVariable, tipoVariable);
-                    return variable_declaration_listP(primerDeclaracionVariable, savedEnvTypes);
+                    return variable_declaration_listP(primerDeclaracionVariable, savedEnvTypes, savedEnvValues);
                     
                 case TokenType.STRUCT:
                     string structName = struct_declarator();
+                    
                     Tipo varRecord = savedEnvTypes.get(structName);
+                    Valor valRecord = savedEnvValues.get(structName);
+
                     string structVarName = variable_name();
                     match(";");
                     
-                    StructVariableDeclaration strVarDec = new StructVariableDeclaration(structName, structVarName, varRecord);
+                    StructVariableDeclaration strVarDec = new StructVariableDeclaration(structName, structVarName, varRecord,valRecord);
 
                     entornoTipos.put(structVarName, varRecord);
-                    return variable_declaration_listP(strVarDec, savedEnvTypes);
+                    return variable_declaration_listP(strVarDec, savedEnvTypes, savedEnvValues);
                 
+                case TokenType.ENUM:
+                    string enumName = enum_declarator();
+                    Tipo varEnum = savedEnvTypes.get(enumName);
+                    Valor valEnum = savedEnvValues.get(enumName);
+
+                    string enumVarName = currentToken.Lexema;
+                    match(TokenType.ID);
+
+                    entornoTipos.put(enumName, varEnum);
+                    EnumerationVariableDeclaration enumVarDec = new EnumerationVariableDeclaration(enumName, enumVarName, varEnum, valEnum);
+
+                    return variable_declaration_listP(enumVarDec, savedEnvTypes, savedEnvValues);
+
                 default:
                     throw new Exception("Error en la declaracion de variables de struct linea: " + Lexer.line + " columna: " + Lexer.column + " currenttoken = " + currentToken.Lexema);
             }
         }
 
-        Sentence variable_declaration_listP(Sentence primerDeclaracionVariable, EnvTypes savedEnvTypes)
+        Sentence variable_declaration_listP(Sentence primerDeclaracionVariable, EnvTypes savedEnvTypes, EnvValues savedEnvValues)
         {            
             switch (currentToken.Tipo)
             {
@@ -1052,19 +1171,35 @@ namespace Syntax
                     
                     SentenceSenquence stSeq = new SentenceSenquence(primerDeclaracionVariable, segundaDeclaracionVariable);
                     entornoTipos.put(idVariable, tipoVariable);
-                    return variable_declaration_listP(stSeq, savedEnvTypes);
+                    return variable_declaration_listP(stSeq, savedEnvTypes, savedEnvValues);
                 
                 case TokenType.STRUCT:
                     string structName = struct_declarator();
+                    
                     Tipo varRecord = savedEnvTypes.get(structName);
+                    Valor valRecord = savedEnvValues.get(structName);
+                    
                     string structVarName = variable_name();
                     match(";");
                     
-                    StructVariableDeclaration strVarDec = new StructVariableDeclaration(structName, structVarName, varRecord);
+                    StructVariableDeclaration strVarDec = new StructVariableDeclaration(structName, structVarName, varRecord, valRecord);
                     
                     SentenceSenquence stSeq2 = new SentenceSenquence(primerDeclaracionVariable, strVarDec);
                     entornoTipos.put(structVarName, varRecord);
-                    return variable_declaration_listP(stSeq2, savedEnvTypes);
+                    return variable_declaration_listP(stSeq2, savedEnvTypes, savedEnvValues);
+
+                case TokenType.ENUM:
+                    string enumName = enum_declarator();
+                    Tipo varEnum = savedEnvTypes.get(enumName);
+                    Valor valEnum = savedEnvValues.get(enumName);
+
+                    string enumVarName = currentToken.Lexema;
+                    match(TokenType.ID);
+
+                    entornoTipos.put(enumName, varEnum);
+                    EnumerationVariableDeclaration enumVarDec = new EnumerationVariableDeclaration(enumName, enumVarName, varEnum, valEnum);
+                    SentenceSenquence stSeq3 = new SentenceSenquence(primerDeclaracionVariable, enumVarDec);
+                    return variable_declaration_listP(stSeq3, savedEnvTypes, savedEnvValues);
 
                 default:
                     return primerDeclaracionVariable;//null
@@ -1082,6 +1217,71 @@ namespace Syntax
             return functionName;
         }
         
+        #endregion
+
+        #region cin/cout
+
+        Sentence cin()
+        {
+            List<Expr> exprs = new List<Expr>();
+
+            match("cin"); 
+            match(">>"); 
+            Expr e = expr();
+            exprs.Add(e);
+            cinP(exprs);
+            return new ConsoleIn(exprs);
+        }
+
+        void cinP(List<Expr> exprs)
+        {
+            if (peek(">>"))
+            {
+                match(">>"); 
+                Expr e = expr();
+                exprs.Add(e);
+                cinP(exprs);
+            }
+            //null
+        }
+
+        Sentence cout()
+        {
+            List<Expr> exprs = new List<Expr>();
+
+            match("cout");
+            match("<<");
+            Expr e = expr();
+            exprs.Add(e);
+
+            bool endl = coutP(exprs);
+            ConsoleOut ConsOut = new ConsoleOut(exprs);
+            ConsOut.endl = endl;
+            return ConsOut;
+        }
+
+        bool coutP(List<Expr> exprs)
+        {
+            if (peek("<<"))
+            {
+                match("<<");
+
+                if (peek("endl"))
+                {
+                    match("endl");
+                    return true;
+                }
+                else
+                {
+                    Expr e = expr();
+                    exprs.Add(e);
+                    return coutP(exprs);                    
+                }
+            }
+            return false;
+            //null
+        }
+
         #endregion
 
         #region expressions
@@ -1626,6 +1826,7 @@ namespace Syntax
         }
 
         #endregion
+        
         #endregion
     }
 }

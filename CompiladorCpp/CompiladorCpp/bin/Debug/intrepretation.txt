@@ -1,10 +1,39 @@
+/*
+struct fooa {
+	int f;
+};
 
-int foo(){
-	int tmp = 1;
-	return tmp;
-}
+struct foo {
+	int a;
+	float b;
+	char c;
+	string d;
+	bool e;
+	struct fooa fua;
+};*/
 
-int main(){
-	int ent = 1;
-	int ent2 = ent + 3;
+int x = 10;
+enum enumerador {suba, a = 4,b = x,c};
+
+
+int main(){	
+/*	int arreglo[5][2] = {{1,1},{2,2},{3,3},{4,4},{5,5}};
+	arreglo[4][1] = 0;
+
+	for (int x =0 ; x < 5; x++)
+		for (int y = 0; y < 2; y++)
+		cout << arreglo[x][y] << endl;
+	struct foo bar;
+	bar.fua.f = 1;
+
+	cout << bar.fua.f << endl;
+	enum enumerador e;
+	int y = 10;
+	e.a = y;
+	
+	cout << e.a << endl;*/
+	
+
+	return 0;
+	
 }

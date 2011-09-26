@@ -15,6 +15,7 @@ namespace Lexical
         CONST, VOID, IF, ELSE, DO, WHILE, FOR, 
         BREAK, CONTINUE, RETURN, 
         TRUE, FALSE,
+        CIN, COUT,
 
         ADDITION, SUBSTRACTION, MULTIPLICATION, DIVISION, REMAINDER,
         AND, OR, NOT,
@@ -29,6 +30,7 @@ namespace Lexical
         LEFT_SQUARE_BRACKET, RIGHT_SQUARE_BRACKET,
         SEMICOLON, COLON, AMPERSAND,
         COMMA, DOT, ESCAPE_SYMBOL,
+        INSTREAM, OUTSTREAM, ENDLINE,
 
         EOF
     }
@@ -122,6 +124,9 @@ namespace Lexical
             tblOperadores.Add(",", TokenType.COMMA); 
             tblOperadores.Add(".", TokenType.DOT);
 
+            tblOperadores.Add(">>", TokenType.INSTREAM);
+            tblOperadores.Add("<<", TokenType.OUTSTREAM);
+
             
             tblOperadores.Add("\0", TokenType.EOF);
                      
@@ -152,6 +157,10 @@ namespace Lexical
             tblPblReservadas.Add("true", TokenType.TRUE);
             tblPblReservadas.Add("false", TokenType.FALSE);
 
+            tblPblReservadas.Add("cin", TokenType.CIN);
+            tblPblReservadas.Add("cout", TokenType.COUT);
+
+            tblPblReservadas.Add("endl", TokenType.ENDLINE);
             
             StreamReader sr = File.OpenText(path);
             bufferInput = sr.ReadToEnd();
@@ -285,13 +294,15 @@ namespace Lexical
                         {
                             lexema += c;
                             nextSymbol();
-                            estado = 13;
+                            //estado = 13;
+                            estado = 23;
                         }
                         else if (c == '>')
                         {
                             lexema += c;
                             nextSymbol();
-                            estado = 13;
+                            //estado = 13;
+                            estado = 22;
                         }                        
                         else if (esPuntuacion(c))
                         {
@@ -439,7 +450,7 @@ namespace Lexical
                         #endregion
                                        
                     case 8:
-                        #region caso                    
+                        #region caso
                         if (c == '\0')
                         {
                             throw new Exception("Se esperaba el simbolo \"\'\". Linea:" + line + " Columna:" + column);
@@ -642,6 +653,48 @@ namespace Lexical
                         }
                         else
                             throw new Exception("Se esperaba el simbolo \"\'\". Linea:" + line + " Columna:" + column);     
+                        break;
+                        #endregion
+                
+                    case 22:
+                        #region caso
+                        if (c == '=')
+                        {
+                            lexema += c;
+                            nextSymbol();
+                            estado = 10;
+                        }
+                        else if (c == '>')
+                        {
+                            lexema += c;
+                            nextSymbol();
+                            estado = 10;
+                        }
+                        else
+                        {
+                            estado = 10;
+                        }
+                        break;
+                        #endregion
+
+                    case 23:
+                        #region caso
+                        if (c == '=')
+                        {
+                            lexema += c;
+                            nextSymbol();
+                            estado = 10;
+                        }
+                        else if (c == '<')
+                        {
+                            lexema += c;
+                            nextSymbol();
+                            estado = 10;
+                        }
+                        else
+                        {
+                            estado = 10;
+                        }
                         break;
                         #endregion
                 }

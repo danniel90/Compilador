@@ -17,7 +17,19 @@ sentence -> constant_declaration ";"
 		  | struct_declaration ";"		  
 		  | variable_declaration variable_declarationP
 		  | void_declaration function_declaration
+		  | cout "<<"  expr cout' ";"
+		  | cin ">>" expr cin' ";"
 </sentence>
+
+<cout'>
+cout' -> "<<" expr cout'
+	   | null
+</cout'>
+
+<cin'>
+cin' -> ">>" expr cin'
+	  | null
+</cin'>
 
 <variable_declaration>
 variable_declaration -> variable_type direct_variable_declarator

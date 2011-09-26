@@ -9,9 +9,7 @@ using Syntax;
 using Environment;
 
 namespace SyntaxTree
-{ 
-
-    #region program
+{
 
     public class Node
     {
@@ -19,9 +17,11 @@ namespace SyntaxTree
 
         public Node()
         {
-            lexline = Lexer.line;            
+            lexline = Lexer.line;
         }
     }
+
+    #region program    
 
     #region Sentence
 
@@ -76,8 +76,24 @@ namespace SyntaxTree
 
         public override void interpretar()
         {
+            if (!(sentences is FunctionDefinition))//osea q hay otras sentences aparte del main
+                sentences.interpretar();
             main.interpretar();
         }
+    }
+
+    public class EmptySentence : Sentence
+    {
+        public EmptySentence() { }
+        
+        public override string genCode()
+        {
+            return "EmptySentence";
+        }
+
+        public override void validarSemantica() { }
+
+        public override void interpretar() { }
     }
 
     public class SentenceSenquence : Sentence
@@ -113,7 +129,17 @@ namespace SyntaxTree
 
     #region VariableDeclaration
 
-    public class VariableDeclarations : Sentence
+    public abstract class VariableDeclaration : Sentence
+    {
+        public EnvValues entornoValores;
+
+        public VariableDeclaration()
+        {
+            entornoValores = Parser.entornoValores;
+        }
+    }
+
+    public class VariableDeclarations : VariableDeclaration
     {
         public VariableDeclaration variableDeclarations;
 
@@ -136,17 +162,7 @@ namespace SyntaxTree
         {
             variableDeclarations.interpretar();
         }
-    }
-
-    public abstract class VariableDeclaration : Sentence 
-    {
-        public EnvValues entornoValores;
-
-        public VariableDeclaration()
-        {
-            entornoValores = Parser.entornoValores;
-        }
-    }
+    }    
 
     public class VariableDeclarators : VariableDeclaration
     {
@@ -215,14 +231,14 @@ namespace SyntaxTree
             }
             else
             {
-                //Valor v_default = getDefaultValue(declaration.tipo);
-                this.entornoValores.put(declaration.id, null);
+                Valor v_default = getDefaultValue(declaration.tipo);
+                this.entornoValores.put(declaration.id, v_default);
             }
         }
 
-        /*public static Valor getDefaultValue(Tipo tipo)
+        public static Valor getDefaultValue(Tipo tipo)
         {
-            if (tipo is Entero)
+            /*if (tipo is Entero)
             {
                 return new ValorEntero(0);
             }
@@ -242,15 +258,19 @@ namespace SyntaxTree
             {
                 return new ValorCadena("");
             }
-            else// if (tipo is Arreglo)
+            else*/// if (tipo is Arreglo)
+            if (tipo is Arreglo)
             {
                 return getValorArreglo((Arreglo)tipo);
             }
+            else
+                return new ValorDefault();
         }
 
         private static ValorArreglo getValorArreglo(Arreglo array)
         {
             ValorArreglo v_array = new ValorArreglo();
+            v_array.valor = new List<Valor>();
 
             if (array.tipoArreglo is Arreglo)
             {
@@ -269,7 +289,7 @@ namespace SyntaxTree
                 }                
             }
             return v_array;
-        }*/
+        }
     }    
     
     public class VariableSubDeclarator
@@ -379,27 +399,31 @@ namespace SyntaxTree
         public override Valor interpretar()
         {
             ValorArreglo vArray = new ValorArreglo();
+            vArray.valor = new List<Valor>();
+
             foreach (Initializers vinit in initializerList)
-            {                
-                Valor valorArreglo;                
+            {                                
 
                 if (vinit is VariableInitializer)
                 {
                     VariableInitializer vInitializer = (VariableInitializer)vinit;
-                    valorArreglo = vInitializer.interpretar();
+                    Valor valorArreglo = vInitializer.interpretar();
 
                     vArray.valor.Add(valorArreglo);
                 }
                 else
                 {
                     VariableInitializerList vList = (VariableInitializerList)vinit;
+                    ValorArreglo vSubArray = new ValorArreglo();
+                    vSubArray.valor = new List<Valor>();
 
                     foreach (Initializers vinit2 in vList.initializerList)
                     {
-                        valorArreglo = vinit2.interpretar();
-                        vArray.valor.Add(valorArreglo);
+                        Valor valorArreglo = vinit2.interpretar();
+                        vSubArray.valor.Add(valorArreglo);
                     }
-                }                
+                    vArray.valor.Add(vSubArray);
+                }               
             }
             return vArray;
         }
@@ -471,6 +495,8 @@ namespace SyntaxTree
         public string idFuncion;
         public Tipo Tiporetorno;
         public Valor ValorRetorno;
+        public bool returned;
+
         public Sentence compoundStatement;
 
         public FunctionDefinition(string nombreFuncion, Tipo ret, Sentence cpStmnt)
@@ -480,6 +506,7 @@ namespace SyntaxTree
             compoundStatement = cpStmnt;
             entornoTiposLocal = Parser.entornoTipos;
             ValorRetorno = null;
+            returned = false;
         }
 
         public FunctionDefinition() { }
@@ -510,11 +537,140 @@ namespace SyntaxTree
 
     #endregion
 
+    #region cin, cout
+
+    public abstract class myConsole : Sentence
+    {
+        public List<Expr> expresiones;
+
+        public myConsole(List<Expr> exprs)
+        {
+            expresiones = exprs;
+        }
+    }
+
+    public class ConsoleIn : myConsole
+    {
+        public ConsoleIn(List<Expr> exprs) : base(exprs) { }
+
+        public override string genCode()
+        {
+            return "ConsoleIn";
+        }
+
+        public override void validarSemantica()
+        {
+            foreach (Expr exp in expresiones)
+            {
+                if (!(exp is ReferenceAccess))
+                {
+                    throw ErrorMessage("Error no se puede guardar entrada en este tipo de variable.");
+                }
+                exp.validarSemantico();
+            }
+        }
+
+        public override void interpretar()
+        {
+            foreach (Expr exp in expresiones)
+            {
+                string line = Console.ReadLine();
+
+                Tipo t_exp = exp.validarSemantico();
+
+                string id = ((ReferenceAccess)exp).lexeme;
+                EnvValues env = ((ReferenceAccess)exp).getEntornoValores();
+
+                if (t_exp is Entero)
+                {
+                    int val = Convert.ToInt32(line);
+                    env.set(id, new ValorEntero(val));
+                }
+                else if (t_exp is Flotante)
+                {
+                    float val = float.Parse(line, System.Globalization.CultureInfo.InvariantCulture.NumberFormat);
+                    env.set(id, new ValorFlotante(val));
+                }
+                else if (t_exp is Booleano)
+                {
+                    bool val = Convert.ToBoolean(Convert.ToInt32(line));
+                    env.set(id, new ValorBooleano(val));
+                }
+                else if (t_exp is Caracter)
+                {
+                    char val = Convert.ToChar(line);
+                    env.set(id, new ValorCaracter(val));
+                }
+                else //if (t_exp is Cadena)
+                {
+                    env.set(id, new ValorCadena(line));
+                }
+            }
+        }
+    }
+
+    public class ConsoleOut : myConsole
+    {
+        public bool endl;
+
+        public ConsoleOut(List<Expr> exprs) : base(exprs)
+        {
+            endl = false;
+        }
+
+        public override string genCode()
+        {
+            return "ConsoleOut";
+        }
+
+        public override void validarSemantica()
+        {
+            foreach (Expr exp in expresiones)
+                exp.validarSemantico();
+        }
+
+        public override void interpretar()
+        {
+            foreach (Expr ex in expresiones)
+            {
+                Valor v = ex.interpretar();
+                Console.Write(v.ToString());
+            }
+            
+            if (endl)
+                Console.WriteLine();
+        }
+    }
+
+    #endregion
+
     #endregion
 
     #region Statement
 
-    public abstract class Statement : Sentence { }
+    public abstract class Statement : Sentence
+    {
+        public Sentence enclosingCycle, enclosingFunction;
+
+        public Statement()
+        {
+            enclosingCycle = Parser.cicloActual;
+            enclosingFunction = Parser.funcionActual;
+        }
+
+        protected bool returnedBreakContinue()
+        {
+            if (enclosingCycle != null)
+                if (((IterationStatement)enclosingCycle).dobreak || ((IterationStatement)enclosingCycle).docontinue)
+                    return true;
+
+            if (enclosingFunction != null)
+                if (((FunctionDefinition)enclosingFunction).returned)
+                    return true;
+            
+            return false;
+        }
+    }
 
     public class StatementSequence : Statement
     {
@@ -539,7 +695,13 @@ namespace SyntaxTree
 
         public override void interpretar()
         {
+            if (returnedBreakContinue()) 
+                return;
             stmt1.interpretar();
+
+
+            if (returnedBreakContinue())
+                return;
             stmt2.interpretar();
         }
     }
@@ -565,6 +727,9 @@ namespace SyntaxTree
 
         public override void interpretar()
         {
+            if (returnedBreakContinue())
+                return;
+
             Sentencias.interpretar();
         }
     }
@@ -590,11 +755,29 @@ namespace SyntaxTree
 
         public override void interpretar()
         {
+            if (returnedBreakContinue())
+                return;
+
             expresion.interpretar();
         }
     }
 
-    public class IfStatement : Statement
+    public abstract class FunctionStatement : Statement
+    {
+        public EnvValues entornoValoresLocal;
+
+        public FunctionStatement()
+        {
+            entornoValoresLocal = Parser.entornoValores;
+        }
+
+        protected void clearEnvValues()
+        {
+            entornoValoresLocal.tablaValores.Clear();
+        }
+    }
+
+    public class IfStatement : FunctionStatement
     {
         public Expr condicion;
         public Sentence BloqueVerdadero;
@@ -612,15 +795,19 @@ namespace SyntaxTree
 
         public override void  validarSemantica()
         {
-            /*Tipo t = condicion.validarSemantico();
-            if (t is Cadena || t is Caracter || t is Registro || t is Enumeracion)
-                throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico. Tipo:" + t.ToString());*/
+            Tipo t = condicion.validarSemantico();
+            
+            if (!(t is Entero || t is Booleano || t is Flotante))
+                throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico. Tipo:" + t.ToString());
 
             BloqueVerdadero.validarSemantica();
         }
 
         public override void interpretar()
         {
+            if (returnedBreakContinue())
+                return;
+
             Valor vFrCtrl = condicion.interpretar();
 
             if (vFrCtrl is ValorEntero)
@@ -643,22 +830,13 @@ namespace SyntaxTree
 
                 if (vFrCtrl2.valor == true)
                     BloqueVerdadero.interpretar();
-            }  
+            }
+
+            clearEnvValues();
         }
     }
 
-    public abstract class IterationStatement : Statement
-    {
-        public bool dobreak;
-        public bool docontinue;
-
-        public IterationStatement()
-        {
-            dobreak = docontinue = false;
-        }
-    }
-
-    public class IfElseStatement : IterationStatement
+    public class IfElseStatement : FunctionStatement
     {
         public Expr condicion;
         public Sentence BloqueVerdadero;
@@ -678,9 +856,10 @@ namespace SyntaxTree
 
         public override void validarSemantica()
         {
-            /*Tipo t = condicion.validarSemantico();
-            if (t is Cadena || t is Caracter || t is Registro || t is Enumeracion)
-                throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico. Tipo:" + t.ToString());*/
+            Tipo t = condicion.validarSemantico();
+
+            if (!(t is Entero || t is Booleano || t is Flotante))
+                throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico. Tipo:" + t.ToString());
 
             BloqueVerdadero.validarSemantica();
             BloqueFalso.validarSemantica();
@@ -688,6 +867,9 @@ namespace SyntaxTree
 
         public override void interpretar()
         {
+            if (returnedBreakContinue())
+                return;
+
             Valor vFrCtrl = condicion.interpretar();
 
             if (vFrCtrl is ValorEntero)
@@ -717,6 +899,20 @@ namespace SyntaxTree
                 else
                     BloqueFalso.interpretar();
             }
+            clearEnvValues();
+        }
+    }
+
+    #region iterationStatements
+
+    public abstract class IterationStatement : FunctionStatement
+    {
+        public bool dobreak;
+        public bool docontinue;
+
+        public IterationStatement()
+        {
+            dobreak = docontinue = false;
         }
     }
 
@@ -755,6 +951,9 @@ namespace SyntaxTree
 
         public override void interpretar()
         {
+            if (returnedBreakContinue())
+                return;
+
             while (true)
             {
                 compoundStatement.interpretar();
@@ -781,8 +980,15 @@ namespace SyntaxTree
 
                     if (vFrCtrl2.valor == false)
                         break;
-                }                
+                }
+                
+                if (dobreak)
+                    break;
+
+                if (((FunctionDefinition)enclosingFunction).returned)
+                    return;
             }
+            clearEnvValues();
         }
     }
 
@@ -821,6 +1027,8 @@ namespace SyntaxTree
 
         public override void interpretar()
         {
+            if (returnedBreakContinue())
+                return;
 
             while (true)
             {
@@ -848,7 +1056,14 @@ namespace SyntaxTree
                         break;
                 }
                 compoundstatement.interpretar();
+                
+                if (dobreak)
+                    break;
+                
+                if (((FunctionDefinition)enclosingFunction).returned)
+                    return;
             }
+            clearEnvValues();
         }
     }
 
@@ -881,58 +1096,91 @@ namespace SyntaxTree
 
         public override void validarSemantica()
         {
-            forInitialization.validarSemantica();
-            forControl.validarSemantica();
-            forIteration.validarSemantica();
+            if (forInitialization != null)
+            {
+                if ((forInitialization is VariableDeclaration) || (forInitialization is ExpressionStatement))
+                    forInitialization.validarSemantica();
+                else
+                    throw ErrorMessage("Inicializacion de for deberia ser declaracion o una expresion.");
+            }
+
+            if (forControl != null)
+            {
+                if (forControl is ExpressionStatement)
+                    forControl.validarSemantica();
+                else
+                    throw ErrorMessage("Control del for deberia ser una expresion.");
+            }
+
+            if (forIteration != null)
+            {
+                if (forIteration is ExpressionStatement)
+                    forIteration.validarSemantica();
+                else
+                    throw ErrorMessage("Iteracion del for deberia ser una expresion.");                
+            }
 
             CompoundStatement.validarSemantica();
         }
 
         public override void interpretar()
         {
-            forInitialization.interpretar();
-            ExpressionStatement forCtrl = (ExpressionStatement)forControl;
-            ExpressionStatement forIter = (ExpressionStatement)forIteration;            
+            if (returnedBreakContinue())
+                return;
 
+            if (forInitialization != null)
+                forInitialization.interpretar();
+            
             while (true)
-            {                                
-                Valor vFrCtrl = forCtrl.expresion.interpretar();
-
-                if (vFrCtrl is ValorEntero)
+            {
+                if (forControl != null)
                 {
-                    ValorEntero vFrCtrl2 = (ValorEntero)vFrCtrl;
+                    Valor vFrCtrl = ((ExpressionStatement)forControl).expresion.interpretar();
 
-                    if (vFrCtrl2.valor <= 0)
-                        break;
-                }
-                else if (vFrCtrl is ValorFlotante)
-                {
-                    ValorFlotante vFrCtrl2 = (ValorFlotante)vFrCtrl;
+                    if (vFrCtrl is ValorEntero)
+                    {
+                        ValorEntero vFrCtrl2 = (ValorEntero)vFrCtrl;
 
-                    if (vFrCtrl2.valor <= 0)
-                        break;
-                }
-                else
-                {
-                    ValorBooleano vFrCtrl2 = (ValorBooleano)vFrCtrl;
+                        if (vFrCtrl2.valor <= 0)
+                            break;
+                    }
+                    else if (vFrCtrl is ValorFlotante)
+                    {
+                        ValorFlotante vFrCtrl2 = (ValorFlotante)vFrCtrl;
 
-                    if (vFrCtrl2.valor == false)
-                        break;
+                        if (vFrCtrl2.valor <= 0)
+                            break;
+                    }
+                    else
+                    {
+                        ValorBooleano vFrCtrl2 = (ValorBooleano)vFrCtrl;
+
+                        if (vFrCtrl2.valor == false)
+                            break;
+                    }
                 }
+                
                 CompoundStatement.interpretar();
-                forIter.interpretar();
+
+                if (dobreak)
+                    break;
+
+                if (((FunctionDefinition)enclosingFunction).returned)
+                    return;
+                
+                if (forIteration != null)
+                    ((ExpressionStatement)forIteration).interpretar();
             }
+            clearEnvValues();
         }
     }
 
+    #endregion
+
     public class ContinueStatement : Statement
     {
-        public Sentence enclosing;
 
-        public ContinueStatement() 
-        {
-            enclosing = Parser.cicloActual;
-        }
+        public ContinueStatement() { }
 
         public override string genCode()
         {
@@ -941,31 +1189,23 @@ namespace SyntaxTree
 
         public override void validarSemantica()
         {
-            if (enclosing == null)
+            if (enclosingCycle == null)
                 throw ErrorMessage("ContinueStatement sin ciclo."); 
         }
 
         public override void interpretar()
         {
-            //IterationStatement itStmnt = (IterationStatement)enclosing;
-            //itStmnt.docontinue = true;
-
-            /*if (enclosing is ForStatement)
-            {
-                ForStatement forEnc = (ForStatement)enclosing;
-            }*/
-            throw ErrorMessage("Continue / interpretar()");
+            if (returnedBreakContinue())
+                return;
+            
+            IterationStatement itStmnt = (IterationStatement)enclosingCycle;
+            itStmnt.docontinue = true;            
         }
     }
 
     public class BreakStatement : Statement
     {
-        public Sentence enclosing;
-
-        public BreakStatement()
-        {
-            enclosing = Parser.cicloActual;
-        }
+        public BreakStatement() { }
 
         public override string genCode()
         {
@@ -974,27 +1214,27 @@ namespace SyntaxTree
 
         public override void validarSemantica()
         {
-            if (enclosing == null)
+            if (enclosingCycle == null)
                 throw ErrorMessage("BreakStatement sin ciclo."); 
         }
 
         public override void interpretar()
         {
-            //IterationStatement itStmnt = (IterationStatement)enclosing;
-            //itStmnt.dobreak = true;
-            throw ErrorMessage("Break / interpretar()");
+            if (returnedBreakContinue())
+                return;
+
+            IterationStatement itStmnt = (IterationStatement)enclosingCycle;
+            itStmnt.dobreak = true;
         }
     }
 
     public class ReturnStatement : Statement
     {
         public Expr expresion;
-        public Sentence enclosing;
 
         public ReturnStatement(Expr expr)
         {            
             expresion = expr;
-            enclosing = Parser.funcionActual;
         }
 
         public override string genCode()
@@ -1007,16 +1247,21 @@ namespace SyntaxTree
             if (expresion != null)
                 expresion.validarSemantico();
 
-            if (enclosing == null)
+            if (enclosingFunction == null)
                 throw ErrorMessage("Return inalcanzable o sin funcion."); 
         }
 
         public override void interpretar()
         {
+            if (returnedBreakContinue())
+                return;
+
             if (expresion != null){                
                 Valor v = expresion.interpretar();
-                ((FunctionDefinition)enclosing).ValorRetorno = v;
+                ((FunctionDefinition)enclosingFunction).ValorRetorno = v;
             }
+
+            ((FunctionDefinition)enclosingFunction).returned = true;
         }
     }
 
@@ -1028,14 +1273,16 @@ namespace SyntaxTree
     {
         public string strId, strVarId;
         public Tipo tipo;
-        public EnvValues entornoValores;
+        public Valor valorRegistro;
+        public EnvValues entornoValoresActual;
 
-        public StructVariableDeclaration(string strid,string strvarname, Tipo tipostr)
+        public StructVariableDeclaration(string strid,string strvarname, Tipo tipostr, Valor valRegistro)
         {
             strId = strid;
             strVarId = strvarname;
             tipo = tipostr;
-            entornoValores = Parser.entornoValores;
+            valorRegistro = valRegistro;
+            entornoValoresActual = Parser.entornoValores;
         }
 
         public override string genCode()
@@ -1050,9 +1297,8 @@ namespace SyntaxTree
         }
 
         public override void interpretar()
-        {
-            Valor valRecord = entornoValores.get(strId);
-            entornoValores.put(strVarId, valRecord);
+        {            
+            entornoValoresActual.put(strVarId, valorRegistro);
         }
     }
 
@@ -1083,15 +1329,17 @@ namespace SyntaxTree
     public class EnumerationDeclaration : Sentence
     {
         public string enumId;
-        public List<VariableDeclarator> variables;
-        public EnvTypes entornoTiposEnum;
-        public EnvTypes entornoValoresEnum;
+        public List<VariableDeclarator> variables;        
 
-        public EnumerationDeclaration(string id, List<VariableDeclarator> vars, EnvTypes entornoTipos)
+        public EnvValues entornoValoresEnum;
+        public EnvValues entornoLocal;
+
+        public EnumerationDeclaration(string id, List<VariableDeclarator> vars, EnvValues entorno)
         {
             enumId = id;
             variables = vars;
-            entornoTiposEnum = entornoTipos;
+            entornoValoresEnum = Parser.entornoValores;
+            entornoLocal = entorno;
         }
 
         public override string genCode()
@@ -1101,12 +1349,40 @@ namespace SyntaxTree
 
         public override void validarSemantica()
         {
-            
+            foreach (VariableDeclarator vDec in variables)
+                vDec.validarSemantica();
         }
 
         public override void interpretar()
         {
-            
+            VariableDeclarator vDec = variables[0];
+            if (vDec.initialization != null)
+            {
+                Valor v = vDec.initialization.interpretar();
+                entornoValoresEnum.put(vDec.declaration.id, v);
+                entornoLocal.put(vDec.declaration.id, v);
+            }
+            else
+            {
+                entornoValoresEnum.put(vDec.declaration.id, new ValorEntero(0));
+                entornoLocal.put(vDec.declaration.id, new ValorEntero(0));
+            }
+
+            for (int x = 1; x < variables.Count; x++)
+            {
+                if (variables[x].initialization != null)
+                {
+                    Valor v = variables[x].initialization.interpretar();
+                    entornoValoresEnum.put(variables[x].declaration.id, v);
+                    entornoLocal.put(variables[x].declaration.id, v);
+                }
+                else 
+                {
+                    ValorEntero v = (ValorEntero)entornoValoresEnum.get(variables[x-1].declaration.id);
+                    entornoValoresEnum.put(variables[x].declaration.id, new ValorEntero( v.valor + 1));
+                    entornoLocal.put(variables[x].declaration.id, v);
+                }
+            }
         }
     }
 
@@ -1114,12 +1390,17 @@ namespace SyntaxTree
     {
         public string enumerationName, enumerationVarName;
         public Tipo tipo;
+        public Valor valorEnum;
+        public EnvValues entornoValoresActual;
 
-        public EnumerationVariableDeclaration(string enumName, string enumVarName, Tipo tipoenum)
+        public EnumerationVariableDeclaration(string enumName, string enumVarName, Tipo tipoenum, Valor valEnum)
         {
             enumerationName = enumName;
             enumerationVarName = enumVarName;
             tipo = tipoenum;
+
+            valorEnum = valEnum;
+            entornoValoresActual = Parser.entornoValores;
         }
 
         public override string genCode()
@@ -1135,7 +1416,7 @@ namespace SyntaxTree
 
         public override void interpretar()
         {
-            
+            entornoValoresActual.put(enumerationVarName, valorEnum);
         }
     }
 
@@ -1249,15 +1530,9 @@ namespace SyntaxTree
         {
             Valor v = value.interpretar();
 
-            if (Id is Id)
-            {
-                Id t_id = (Id)Id;
-                this.entornoValoresActual.put(t_id.lexeme, v);
+            ((ReferenceAccess)Id).setElem(v);
 
-                return v;
-            }
-            else
-                throw ErrorMessage("Solo Id se pueden asignar.");
+            return v;
         }
     }
 
@@ -1292,38 +1567,31 @@ namespace SyntaxTree
         {
             Valor v = value.interpretar();
 
-            if (Id is Id)
-            {
-                Id t_id = (Id)Id;
+            ReferenceAccess t_id = (ReferenceAccess)Id;
 
-                Valor v_id = this.entornoValoresActual.get(t_id.lexeme);
+            Valor oldval = t_id.interpretar();//this.entornoValoresActual.get(((ReferenceAccess)Id).lexeme);
 
-                Valor newval;
-                if (v_id is ValorEntero)
-                    newval = new ValorEntero(
-                        ((ValorEntero)v_id).valor 
-                        + 
-                        ((ValorEntero)v).valor
-                        );                 
-                else if (v_id is ValorFlotante)
-                    newval = new ValorFlotante(
-                        ((ValorFlotante)v_id).valor 
-                        + 
-                        ((ValorFlotante)v).valor
-                        );                
-                else
-                    newval = new ValorCadena(
-                        ((ValorCadena)v_id).valor 
+            Valor newval;
+            if (oldval is ValorEntero)
+                newval = new ValorEntero(((ValorEntero)oldval).valor
+                                        + 
+                                        ((ValorEntero)v).valor);
+            else if (oldval is ValorFlotante)
+                newval = new ValorFlotante(((ValorFlotante)oldval).valor
+                                          +
+                                          ((ValorFlotante)v).valor
+                    );
+            else
+                newval = new ValorCadena(
+                        ((ValorCadena)oldval).valor 
                         +
                         ((ValorCadena)v).valor
-                        );                
-                    
-                this.entornoValoresActual.put(t_id.lexeme, newval);
+                        );
 
-                return newval;
-            }
-            else
-                throw ErrorMessage("Solo Id se pueden asignar.");
+            //this.entornoValoresActual.set(t_id.lexeme, newval);
+            t_id.setElem(newval);
+
+            return newval;
         }
 
     }
@@ -1380,7 +1648,7 @@ namespace SyntaxTree
                         ((ValorFlotante)v).valor
                         );
                 
-                this.entornoValoresActual.put(t_id.lexeme, newval);
+                this.entornoValoresActual.set(t_id.lexeme, newval);
 
                 return newval;
             }
@@ -1441,7 +1709,7 @@ namespace SyntaxTree
                         ((ValorFlotante)v).valor
                         );                
                 
-                this.entornoValoresActual.put(t_id.lexeme, newval);                
+                this.entornoValoresActual.set(t_id.lexeme, newval);                
 
                 return newval;
             }
@@ -1502,7 +1770,7 @@ namespace SyntaxTree
                         ((ValorFlotante)v).valor
                         );                
 
-                this.entornoValoresActual.put(t_id.lexeme, newval);
+                this.entornoValoresActual.set(t_id.lexeme, newval);
                 return newval;
             }
             else
@@ -2401,7 +2669,7 @@ namespace SyntaxTree
                 newVal = new ValorFlotante(((ValorFlotante)val).valor++);
 
 
-            this.entornoValoresActual.put(((ReferenceAccess)Id).lexeme, newVal);
+            this.entornoValoresActual.set(((ReferenceAccess)Id).lexeme, newVal);
             return newVal;
         }
     }
@@ -2447,7 +2715,7 @@ namespace SyntaxTree
             else
                 newVal = new ValorFlotante(((ValorFlotante)val).valor--);
 
-            this.entornoValoresActual.put(((ReferenceAccess)Id).lexeme, newVal);
+            this.entornoValoresActual.set(((ReferenceAccess)Id).lexeme, newVal);
             return newVal;
         }        
     }
@@ -2495,14 +2763,14 @@ namespace SyntaxTree
                 newVal = new ValorEntero(
                     Convert.ToInt32(
                         !(Convert.ToBoolean(((ValorEntero)val).valor))));
-            else if (val is Flotante)
+            else if (val is ValorFlotante)
                 newVal = new ValorFlotante(
                     Convert.ToInt32(
                         !(Convert.ToBoolean(((ValorFlotante)val).valor))));
             else
                 newVal = new ValorBooleano(!((ValorBooleano)val).valor);
 
-            this.entornoValoresActual.put(((ReferenceAccess)Id).lexeme, newVal);
+            this.entornoValoresActual.set(((ReferenceAccess)Id).lexeme, newVal);
             return newVal;
         }
     }
@@ -2560,14 +2828,15 @@ namespace SyntaxTree
         public override Valor interpretar()
         {            
  	        Valor val = this.Id.interpretar();
+            EnvValues env = ((ReferenceAccess)Id).getEntornoValores();
 
             Valor newVal;
             if (val is ValorEntero)
-                newVal = new ValorEntero(((ValorEntero)val).valor++);
+                newVal = new ValorEntero(((ValorEntero)val).valor + 1);
             else
-                newVal = new ValorFlotante(((ValorFlotante)val).valor++);
-
-            this.entornoValoresActual.put(((ReferenceAccess)Id).lexeme, newVal);
+                newVal = new ValorFlotante(((ValorFlotante)val).valor + 1);             
+            
+            env.set(((ReferenceAccess)Id).lexeme, newVal);
             return val;
         }
     }
@@ -2614,7 +2883,7 @@ namespace SyntaxTree
                 newVal = new ValorFlotante(((ValorFlotante)val).valor--);
 
 
-            this.entornoValoresActual.put(((ReferenceAccess)Id).lexeme, newVal);
+            this.entornoValoresActual.set(((ReferenceAccess)Id).lexeme, newVal);
             return val;
         }        
     }
@@ -2753,7 +3022,7 @@ namespace SyntaxTree
     #endregion
 
 
-    public class ReferenceAccess : Expr
+    public abstract class ReferenceAccess : Expr
     {
         public string lexeme;
 
@@ -2761,7 +3030,11 @@ namespace SyntaxTree
         {
             lexeme = lex;
         }
-    }
+
+        public abstract void setElem(Valor valor);
+
+        public abstract EnvValues getEntornoValores();
+    }    
 
     public class Id : ReferenceAccess
     {
@@ -2783,14 +3056,23 @@ namespace SyntaxTree
         {
             return this.entornoValoresActual.get(this.lexeme);
         }
-    }
+
+        public override EnvValues getEntornoValores()
+        {
+            return this.entornoValoresActual;
+        }
+
+        public override void setElem(Valor valor)
+        {
+            this.entornoValoresActual.set(this.lexeme, valor);
+        }
+    }    
 
     public class MiembroRegistro : ReferenceAccess
     {
         public ReferenceAccess member;
 
-        public MiembroRegistro(string lex, ReferenceAccess mem)
-            : base(lex)
+        public MiembroRegistro(string lex, ReferenceAccess mem) : base(lex)
         {
             member = mem;
         }
@@ -2818,26 +3100,80 @@ namespace SyntaxTree
                 else
                     return t2;
             }
+            else if (t is Enumeracion)
+            {
+                Enumeracion enume = (Enumeracion)t;
+
+                Tipo t2 = enume.entornoTiposEnum.get(member.lexeme);//2
+
+                return t2;                
+            }
             else
-                throw ErrorMessage("El tipo " + lexeme + " no es de tipo struct.");
+                throw ErrorMessage("El tipo " + lexeme + " no es de tipo struct o enumeracion.");
         }
 
         public override Valor interpretar()
         {
-            ValorRegistro v = (ValorRegistro)this.entornoValoresActual.get(this.lexeme);//1
+            Valor v = this.entornoValoresActual.get(this.lexeme);//1
 
-            Valor v2 = v.valor.get(member.lexeme);//2
+            if (v is ValorRegistro)
+            {
+                Valor v2 = ((ValorRegistro)v).valor.get(member.lexeme);//2
+
+                if (v2 is ValorRegistro)
+                {
+                    member.entornoValoresActual = ((ValorRegistro)v).valor;
+                    return member.interpretar();
+                }
+                else
+                    return v2;
+            }
+            else
+            {
+                Valor v2 = ((ValorEnumeracion)v).valor.get(member.lexeme);
+                return v2;
+            }
+        }
+
+        public override EnvValues getEntornoValores()
+        {
+            ValorRegistro v = (ValorRegistro)this.entornoValoresActual.get(this.lexeme);
+            
+            Valor v2 = v.valor.get(member.lexeme);
 
             if (v2 is ValorRegistro)
             {
                 ValorRegistro record = (ValorRegistro)v2;
                 member.entornoValoresActual = record.valor;
-                return member.interpretar();
+                return member.getEntornoValores();
             }
             else
-                return v2;
+                return this.entornoValoresActual;
         }
 
+        public override void setElem(Valor valor)
+        {
+            Valor v = this.entornoValoresActual.get(this.lexeme);
+
+            if (v is ValorRegistro)
+            {
+                Valor v2 = ((ValorRegistro)v).valor.get(member.lexeme);
+
+                if (v2 is ValorRegistro)
+                {
+                    member.entornoValoresActual = ((ValorRegistro)v).valor;
+                    member.setElem(valor);
+                }
+                else
+                    ((ValorRegistro)v).valor.set(member.lexeme, valor);
+            }
+            else
+            {
+                /*Valor v2 = ((ValorEnumeracion)v).valor.get(member.lexeme);
+
+                ((ValorEnumeracion)v).valor.set(member.lexeme, valor);*/
+            }
+        }
     }
 
     public class IndiceArreglo : ReferenceAccess
@@ -2895,13 +3231,46 @@ namespace SyntaxTree
             for (int x = 0; x < IndexList.Count; x++)
             {
                 ValorEntero index = (ValorEntero)IndexList[x].interpretar();
+                
                 if (index.valor < (((ValorArreglo)ret).valor).Count)
                     ret = ((ValorArreglo)ret).valor[index.valor];
                 else 
                     throw ErrorMessage("Indice fuera de limites de arreglo.");
             }
 
+            if (ret is ValorDefault)
+                throw ErrorMessage("Elemento de arreglo no inicializado.");
+
             return ret;
+        }
+
+        public override void setElem(Valor valor)
+        {
+            ValorArreglo v = (ValorArreglo)this.entornoValoresActual.get(this.lexeme);//1
+            
+            Valor ret = v;
+            
+            for (int x = 0; x < IndexList.Count - 1; x++)
+            {
+                ValorEntero index = (ValorEntero)IndexList[x].interpretar();
+
+                if (index.valor < (((ValorArreglo)ret).valor).Count)
+                    ret = ((ValorArreglo)ret).valor[index.valor];
+                else
+                    throw ErrorMessage("Indice fuera de limites de arreglo.");
+            }
+
+            ValorEntero idx = (ValorEntero)IndexList.Last().interpretar();
+
+            if (idx.valor < (((ValorArreglo)ret).valor).Count)
+                ((ValorArreglo)ret).valor[idx.valor] = valor;
+            else
+                throw ErrorMessage("Indice fuera de limites de arreglo.");
+        }
+
+        public override EnvValues getEntornoValores()
+        {
+            return this.entornoValoresActual;
         }
     }
 
@@ -2944,6 +3313,23 @@ namespace SyntaxTree
             }
             else
                 throw ErrorMessage(this.lexeme + " no es una Funcion.");            
+        }
+
+        public override Valor interpretar()
+        {
+            ValorFuncion vFunc = (ValorFuncion)this.entornoValoresActual.get(this.lexeme);
+            vFunc.funcion.interpretar();
+            return ((FunctionDefinition)vFunc.funcion).ValorRetorno;
+        }
+
+        public override EnvValues getEntornoValores()
+        {
+            throw ErrorMessage("No se puede devolver entorno de valores. LlamadaFuncion / getEntornoValores()");
+        }
+
+        public override void setElem(Valor valor)
+        {
+            throw ErrorMessage("No se puede setear valores. LlamadaFuncion / getEntornoValores()");
         }
     }
 
@@ -3008,6 +3394,13 @@ namespace SyntaxTree
 
     public class Enumeracion : Tipo
     {
+        public EnvTypes entornoTiposEnum;
+
+        public Enumeracion(EnvTypes entornoTipos)
+        {
+            entornoTiposEnum = entornoTipos;
+        }
+
         public override bool esEquivalente(Tipo t)
         {
             return t is Enumeracion;
@@ -3096,6 +3489,8 @@ namespace SyntaxTree
 
                 if (!tipoRetorno.esEquivalente(func.tipoRetorno))
                     return false;
+
+                //for (int x = 0; x < )
                 
                 return true;
                 //return Parametros.esEquivalente(func.Parametros);
@@ -3112,6 +3507,19 @@ namespace SyntaxTree
     public abstract class Valor
     {
         public abstract Valor clone();
+    }
+
+    public class ValorDefault : Valor
+    {
+        public override Valor clone()
+        {
+            throw new Exception("Valor nulo.");
+        }
+
+        public override string ToString()
+        {
+            return "ValorDefault";
+        }
     }
 
     public class ValorEntero : Valor

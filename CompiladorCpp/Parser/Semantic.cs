@@ -44,42 +44,52 @@ namespace Environment
     {
         public static int cont = 0;
         private int id;
-        public Dictionary<string, Valor> tablaSimbolos;
+        public Dictionary<string, Valor> tablaValores;
         public static Stack<EnvValues> pila;
         protected EnvValues previo;
 
         public EnvValues(EnvValues entorno)
         {            
-            tablaSimbolos = new Dictionary<string, Valor>();
+            tablaValores = new Dictionary<string, Valor>();
             previo = entorno;
             pila = new Stack<EnvValues>();
             id = cont++;
         }
 
         public void put(string key, Valor valor)
-        {            
-            tablaSimbolos.Add(key, valor);
+        {
+            /*for (EnvValues e = this; e != null; e = e.previo)
+            {
+                if (e.tablaValores.ContainsKey(key))
+                {
+                    e.tablaValores[key] = valor;
+                    return;
+                }
+            }*/
+            tablaValores.Add(key, valor);
         }
 
-        public void putByReference(string key, Valor valor)
+        public void set(string key, Valor valor)
         {
             for (EnvValues e = this; e != null; e = e.previo)
             {
-                if (e.tablaSimbolos.ContainsKey(key))
+                if (e.tablaValores.ContainsKey(key))
                 {
-                    e.tablaSimbolos.Remove(key);
-                    e.tablaSimbolos.Add(key, valor);
+                    e.tablaValores.Remove(key);
+                    e.tablaValores.Add(key, valor);
                     return;
                 }
             }
+
+            throw new Exception("No existe variable " + key + ".");
         }
 
         public Valor get(string key)
         {
             for (EnvValues e = this; e != null; e = e.previo)
             {
-                if (e.tablaSimbolos.ContainsKey(key))
-                    return e.tablaSimbolos[key];
+                if (e.tablaValores.ContainsKey(key))
+                    return e.tablaValores[key];
             }
 
             throw new Exception("La variable " + key + " no existe.");
