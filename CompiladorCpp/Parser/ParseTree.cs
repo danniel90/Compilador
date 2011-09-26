@@ -492,6 +492,8 @@ namespace SyntaxTree
     public class FunctionDefinition : Sentence
     {
         public EnvTypes entornoTiposLocal;
+        public EnvValues entornoValoresLocal;
+
         public string idFuncion;
         public Tipo Tiporetorno;
         public Valor ValorRetorno;
@@ -505,11 +507,20 @@ namespace SyntaxTree
             Tiporetorno = ret;
             compoundStatement = cpStmnt;
             entornoTiposLocal = Parser.entornoTipos;
+            entornoValoresLocal = Parser.entornoValores;
+
             ValorRetorno = null;
             returned = false;
         }
 
-        public FunctionDefinition() { }
+        public FunctionDefinition() 
+        {
+            entornoTiposLocal = Parser.entornoTipos;
+            entornoValoresLocal = Parser.entornoValores;
+
+            ValorRetorno = null;
+            returned = false;
+        }
 
         public void init(string nombreFuncion, Tipo ret, Sentence cpStmnt)
         {
@@ -1515,10 +1526,13 @@ namespace SyntaxTree
 
         public override Tipo validarSemantico()
         {
-            Tipo t = Id.validarSemantico();
+            Tipo t = Id.validarSemantico();            
 
             if (!(Id is ReferenceAccess))
                 throw ErrorMessage("El id de asignacion deberia ser de referencia!!");
+
+            if (t.isConstant)
+                throw ErrorMessage("No se puede modificar variable de solo-lectura.");
 
             if (t.esEquivalente(value.validarSemantico()))
                 return t;
@@ -1551,6 +1565,9 @@ namespace SyntaxTree
             
             if (!(Id is ReferenceAccess))
                 throw ErrorMessage("El id de asignacion deberia ser de referencia!!");
+
+            if (t.isConstant)
+                throw ErrorMessage("No se puede modificar variable de solo-lectura.");
 
             if ((t is Entero) || (t is Flotante) || (t is Cadena))
             {
@@ -1587,8 +1604,7 @@ namespace SyntaxTree
                         +
                         ((ValorCadena)v).valor
                         );
-
-            //this.entornoValoresActual.set(t_id.lexeme, newval);
+            
             t_id.setElem(newval);
 
             return newval;
@@ -1612,6 +1628,9 @@ namespace SyntaxTree
             if (!(Id is ReferenceAccess))
                 throw ErrorMessage("El id de asignacion deberia ser de referencia!!");
 
+            if (t.isConstant)
+                throw ErrorMessage("No se puede modificar variable de solo-lectura.");
+
             if ((t is Entero) || (t is Flotante))
             {
 
@@ -1628,32 +1647,27 @@ namespace SyntaxTree
         {
             Valor v = value.interpretar();
 
-            if (Id is Id)
-            {
-                Id t_id = (Id)Id;
+            ReferenceAccess t_id = (ReferenceAccess)Id;
 
-                Valor v_id = this.entornoValoresActual.get(t_id.lexeme);
+            Valor oldval = this.entornoValoresActual.get(t_id.lexeme);
 
-                Valor newval;
-                if (v_id is ValorEntero)
-                    newval = new ValorEntero(
-                        ((ValorEntero)v_id).valor
+            Valor newval;
+            if (oldval is ValorEntero)
+                newval = new ValorEntero(
+                        ((ValorEntero)oldval).valor
                         -
                         ((ValorEntero)v).valor
                         );                 
-                else
-                    newval = new ValorFlotante(
-                        ((ValorFlotante)v_id).valor
+            else
+                newval = new ValorFlotante(
+                        ((ValorFlotante)oldval).valor
                         -
                         ((ValorFlotante)v).valor
                         );
-                
-                this.entornoValoresActual.set(t_id.lexeme, newval);
 
-                return newval;
-            }
-            else
-                throw ErrorMessage("Solo Id se pueden asignar.");
+            t_id.setElem(newval);
+            
+            return newval;
         }
     }
 
@@ -1668,10 +1682,13 @@ namespace SyntaxTree
 
         public override Tipo validarSemantico()
         {
-            Tipo t = Id.validarSemantico();
+            Tipo t = Id.validarSemantico();            
 
             if (!(Id is ReferenceAccess))
                 throw ErrorMessage("El id de asignacion deberia ser de referencia!!");
+
+            if (t.isConstant)
+                throw ErrorMessage("No se puede modificar variable de solo-lectura.");
 
             if ((t is Entero) || (t is Flotante))
             {
@@ -1688,33 +1705,27 @@ namespace SyntaxTree
         {
             Valor v = value.interpretar();
 
-            if (Id is Id)
-            {
-                Id t_id = (Id)Id;
+            ReferenceAccess t_id = (ReferenceAccess)Id;
 
-                Valor v_id = this.entornoValoresActual.get(t_id.lexeme);
+            Valor oldval = this.entornoValoresActual.get(t_id.lexeme);
 
-                Valor newval;
-                
-                if (v_id is ValorEntero)
-                    newval = new ValorEntero(
-                        ((ValorEntero)v_id).valor
+            Valor newval;
+            if (oldval is ValorEntero)                
+                newval = new ValorEntero(
+                        ((ValorEntero)oldval).valor
                         *
                         ((ValorEntero)v).valor
                         );
-                else
-                    newval = new ValorFlotante(
-                        ((ValorFlotante)v_id).valor
+            else
+                newval = new ValorFlotante(
+                        ((ValorFlotante)oldval).valor
                         *
                         ((ValorFlotante)v).valor
-                        );                
-                
-                this.entornoValoresActual.set(t_id.lexeme, newval);                
+                        );
 
-                return newval;
-            }
-            else
-                throw ErrorMessage("Solo Id se pueden asignar.");
+            t_id.setElem(newval);
+            return newval;
+
         }
     }
 
@@ -1734,6 +1745,9 @@ namespace SyntaxTree
             if (!(Id is ReferenceAccess))
                 throw ErrorMessage("El id de asignacion deberia ser de referencia!!");
 
+            if (t.isConstant)
+                throw ErrorMessage("No se puede modificar variable de solo-lectura.");
+
             if ((t is Entero) || (t is Flotante))
             {
                 if (t.esEquivalente(value.validarSemantico()))
@@ -1749,32 +1763,28 @@ namespace SyntaxTree
         {
             Valor v = value.interpretar();
 
-            if (Id is Id)
-            {
-                Id t_id = (Id)Id;
+            
+            ReferenceAccess t_id = (ReferenceAccess)Id;
 
-                Valor v_id = this.entornoValoresActual.get(t_id.lexeme);
+            Valor oldval = this.entornoValoresActual.get(t_id.lexeme);
 
-                Valor newval;
+            Valor newval;
 
-                if (v_id is ValorEntero)
-                    newval = new ValorEntero(
-                        ((ValorEntero)v_id).valor
+            if (oldval is ValorEntero)
+                newval = new ValorEntero(
+                        ((ValorEntero)oldval).valor
                         /
                         ((ValorEntero)v).valor
                         );
-                else
-                    newval = new ValorFlotante(
-                        ((ValorFlotante)v_id).valor
+            else
+                newval = new ValorFlotante(
+                        ((ValorFlotante)oldval).valor
                         /
                         ((ValorFlotante)v).valor
-                        );                
+                        );
 
-                this.entornoValoresActual.set(t_id.lexeme, newval);
-                return newval;
-            }
-            else
-                throw ErrorMessage("Solo Id se pueden asignar.");
+            t_id.setElem(newval);
+            return newval;            
         }
     }
 
@@ -2645,6 +2655,9 @@ namespace SyntaxTree
 
                 Tipo t_ref = refAcc.validarSemantico();
 
+                if (t_ref.isConstant)
+                    throw ErrorMessage("No se puede modificar variable de solo-lectura.");
+
                 if (t_ref is Entero)
                     return t_ref;
                 if (t_ref is Flotante)
@@ -2664,12 +2677,13 @@ namespace SyntaxTree
 
             Valor newVal;
             if (val is ValorEntero)
-                newVal = new ValorEntero(((ValorEntero)val).valor++);
+                newVal = new ValorEntero(((ValorEntero)val).valor + 1);
             else
-                newVal = new ValorFlotante(((ValorFlotante)val).valor++);
-
-
-            this.entornoValoresActual.set(((ReferenceAccess)Id).lexeme, newVal);
+                newVal = new ValorFlotante(((ValorFlotante)val).valor + 1);
+            
+            ReferenceAccess t_id = (ReferenceAccess)Id;
+            t_id.setElem(newVal);
+            
             return newVal;
         }
     }
@@ -2691,6 +2705,9 @@ namespace SyntaxTree
 
                 Tipo t_ref = refAcc.validarSemantico();
 
+                if (t_ref.isConstant)
+                    throw ErrorMessage("No se puede modificar variable de solo-lectura.");
+
                 if (t_ref is Entero)
                     return t_ref;
 
@@ -2711,11 +2728,14 @@ namespace SyntaxTree
 
             Valor newVal;
             if (val is ValorEntero)
-                newVal = new ValorEntero(((ValorEntero)val).valor--);
+                newVal = new ValorEntero(((ValorEntero)val).valor - 1);
             else
-                newVal = new ValorFlotante(((ValorFlotante)val).valor--);
+                newVal = new ValorFlotante(((ValorFlotante)val).valor - 1);
 
-            this.entornoValoresActual.set(((ReferenceAccess)Id).lexeme, newVal);
+            //this.entornoValoresActual.set(((ReferenceAccess)Id).lexeme, newVal);
+            ReferenceAccess t_id = (ReferenceAccess)Id;
+            t_id.setElem(newVal);
+
             return newVal;
         }        
     }
@@ -2770,7 +2790,7 @@ namespace SyntaxTree
             else
                 newVal = new ValorBooleano(!((ValorBooleano)val).valor);
 
-            this.entornoValoresActual.set(((ReferenceAccess)Id).lexeme, newVal);
+            //this.entornoValoresActual.set(((ReferenceAccess)Id).lexeme, newVal);
             return newVal;
         }
     }
@@ -2811,6 +2831,9 @@ namespace SyntaxTree
 
                 Tipo t_ref = refAcc.validarSemantico();
 
+                if (t_ref.isConstant)
+                    throw ErrorMessage("No se puede modificar variable de solo-lectura.");
+
                 if (t_ref is Flotante)
                     return t_ref;
 
@@ -2828,7 +2851,7 @@ namespace SyntaxTree
         public override Valor interpretar()
         {            
  	        Valor val = this.Id.interpretar();
-            EnvValues env = ((ReferenceAccess)Id).getEntornoValores();
+            //EnvValues env = ((ReferenceAccess)Id).getEntornoValores();
 
             Valor newVal;
             if (val is ValorEntero)
@@ -2836,7 +2859,9 @@ namespace SyntaxTree
             else
                 newVal = new ValorFlotante(((ValorFlotante)val).valor + 1);             
             
-            env.set(((ReferenceAccess)Id).lexeme, newVal);
+            //env.set(((ReferenceAccess)Id).lexeme, newVal);
+            ReferenceAccess t_id = (ReferenceAccess)Id;
+            t_id.setElem(newVal);
             return val;
         }
     }
@@ -2858,6 +2883,9 @@ namespace SyntaxTree
 
                 Tipo t_ref = refAcc.validarSemantico();
 
+                if (t_ref.isConstant)
+                    throw ErrorMessage("No se puede modificar variable de solo-lectura.");
+
                 if (t_ref is Entero)
                     return t_ref;
 
@@ -2878,12 +2906,13 @@ namespace SyntaxTree
 
             Valor newVal;
             if (val is ValorEntero)
-                newVal = new ValorEntero(((ValorEntero)val).valor--);
+                newVal = new ValorEntero(((ValorEntero)val).valor-1);
             else
-                newVal = new ValorFlotante(((ValorFlotante)val).valor--);
+                newVal = new ValorFlotante(((ValorFlotante)val).valor-1);
 
 
-            this.entornoValoresActual.set(((ReferenceAccess)Id).lexeme, newVal);
+            ReferenceAccess t_id = (ReferenceAccess)Id;
+            t_id.setElem(newVal);
             return val;
         }        
     }
@@ -3038,7 +3067,6 @@ namespace SyntaxTree
 
     public class Id : ReferenceAccess
     {
-
         public Id(string lex) : base(lex) { }
 
         public override string genCode()
@@ -3054,7 +3082,12 @@ namespace SyntaxTree
 
         public override Valor interpretar()
         {
-            return this.entornoValoresActual.get(this.lexeme);
+            Tipo t = entornoTiposActual.get(lexeme);
+
+            if (t.isReference)
+                return t.referHere.get(t.referby);
+            else
+                return this.entornoValoresActual.get(this.lexeme);
         }
 
         public override EnvValues getEntornoValores()
@@ -3064,7 +3097,12 @@ namespace SyntaxTree
 
         public override void setElem(Valor valor)
         {
-            this.entornoValoresActual.set(this.lexeme, valor);
+            Tipo t = entornoTiposActual.get(lexeme);
+
+            if (t.isReference)
+                t.referHere.set(t.referby, valor);
+            else 
+                this.entornoValoresActual.set(this.lexeme, valor);
         }
     }    
 
@@ -3225,47 +3263,107 @@ namespace SyntaxTree
 
         public override Valor interpretar()
         {
-            ValorArreglo v = (ValorArreglo)this.entornoValoresActual.get(this.lexeme);//1
+            Tipo t = entornoTiposActual.get(lexeme);
 
-            Valor ret = v;
-            for (int x = 0; x < IndexList.Count; x++)
+            if (t.isReference)
             {
-                ValorEntero index = (ValorEntero)IndexList[x].interpretar();
+                ValorArreglo v = (ValorArreglo)t.referHere.get(t.referby);//1
+                //return t.referHere.get(t.referby);
                 
-                if (index.valor < (((ValorArreglo)ret).valor).Count)
-                    ret = ((ValorArreglo)ret).valor[index.valor];
-                else 
-                    throw ErrorMessage("Indice fuera de limites de arreglo.");
+                Valor ret = v;
+                for (int x = 0; x < IndexList.Count; x++)
+                {
+                    ValorEntero index = (ValorEntero)IndexList[x].interpretar();
+
+                    if (index.valor < (((ValorArreglo)ret).valor).Count)
+                        ret = ((ValorArreglo)ret).valor[index.valor];
+                    else
+                        throw ErrorMessage("Indice fuera de limites de arreglo.");
+                }
+
+                if (ret is ValorDefault)
+                    throw ErrorMessage("Elemento de arreglo no inicializado.");
+
+                return ret;
             }
+            else
+            {
+                //return this.entornoValoresActual.get(this.lexeme);
 
-            if (ret is ValorDefault)
-                throw ErrorMessage("Elemento de arreglo no inicializado.");
+                ValorArreglo v = (ValorArreglo)this.entornoValoresActual.get(this.lexeme);//1
 
-            return ret;
+                Valor ret = v;
+                for (int x = 0; x < IndexList.Count; x++)
+                {
+                    ValorEntero index = (ValorEntero)IndexList[x].interpretar();
+
+                    if (index.valor < (((ValorArreglo)ret).valor).Count)
+                        ret = ((ValorArreglo)ret).valor[index.valor];
+                    else
+                        throw ErrorMessage("Indice fuera de limites de arreglo.");
+                }
+
+                if (ret is ValorDefault)
+                    throw ErrorMessage("Elemento de arreglo no inicializado.");
+
+                return ret;
+            }
         }
 
         public override void setElem(Valor valor)
         {
-            ValorArreglo v = (ValorArreglo)this.entornoValoresActual.get(this.lexeme);//1
-            
-            Valor ret = v;
-            
-            for (int x = 0; x < IndexList.Count - 1; x++)
-            {
-                ValorEntero index = (ValorEntero)IndexList[x].interpretar();
 
-                if (index.valor < (((ValorArreglo)ret).valor).Count)
-                    ret = ((ValorArreglo)ret).valor[index.valor];
+            Tipo t = entornoTiposActual.get(lexeme);
+
+            if (t.isReference)
+            {
+                ValorArreglo v = (ValorArreglo)t.referHere.get(t.referby);//1
+
+                Valor ret = v;
+
+                for (int x = 0; x < IndexList.Count - 1; x++)
+                {
+                    ValorEntero index = (ValorEntero)IndexList[x].interpretar();
+
+                    if (index.valor < (((ValorArreglo)ret).valor).Count)
+                        ret = ((ValorArreglo)ret).valor[index.valor];
+                    else
+                        throw ErrorMessage("Indice fuera de limites de arreglo.");
+                }
+
+                ValorEntero idx = (ValorEntero)IndexList.Last().interpretar();
+
+                if (idx.valor < (((ValorArreglo)ret).valor).Count)
+                    ((ValorArreglo)ret).valor[idx.valor] = valor;
+                else
+                    throw ErrorMessage("Indice fuera de limites de arreglo.");
+                
+            }
+            else
+            {
+                //this.entornoValoresActual.set(this.lexeme, valor);
+
+                ValorArreglo v = (ValorArreglo)this.entornoValoresActual.get(this.lexeme);//1
+
+                Valor ret = v;
+
+                for (int x = 0; x < IndexList.Count - 1; x++)
+                {
+                    ValorEntero index = (ValorEntero)IndexList[x].interpretar();
+
+                    if (index.valor < (((ValorArreglo)ret).valor).Count)
+                        ret = ((ValorArreglo)ret).valor[index.valor];
+                    else
+                        throw ErrorMessage("Indice fuera de limites de arreglo.");
+                }
+
+                ValorEntero idx = (ValorEntero)IndexList.Last().interpretar();
+
+                if (idx.valor < (((ValorArreglo)ret).valor).Count)
+                    ((ValorArreglo)ret).valor[idx.valor] = valor;
                 else
                     throw ErrorMessage("Indice fuera de limites de arreglo.");
             }
-
-            ValorEntero idx = (ValorEntero)IndexList.Last().interpretar();
-
-            if (idx.valor < (((ValorArreglo)ret).valor).Count)
-                ((ValorArreglo)ret).valor[idx.valor] = valor;
-            else
-                throw ErrorMessage("Indice fuera de limites de arreglo.");
         }
 
         public override EnvValues getEntornoValores()
@@ -3286,7 +3384,7 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "LlamadaFuncion";
-        }        
+        }
 
         public override Tipo validarSemantico()
         {
@@ -3301,7 +3399,7 @@ namespace SyntaxTree
                     for (int x = 0; x < listaParametros.Count; x++)
                     {
                         Tipo t1 = listaParametros[x].validarSemantico();
-                        Tipo t2 = func.Parametros[x];
+                        Tipo t2 = func.Parametros.ElementAt(x).Value;
                         if (!t1.esEquivalente(t2))
                             throw ErrorMessage("Tipo de parametro incorrecto.");
                     }
@@ -3318,7 +3416,32 @@ namespace SyntaxTree
         public override Valor interpretar()
         {
             ValorFuncion vFunc = (ValorFuncion)this.entornoValoresActual.get(this.lexeme);
+            
+            FunctionDefinition funcion = ((FunctionDefinition)vFunc.funcion);
+
+            Funcion func = (Funcion)entornoTiposActual.get(this.lexeme);
+
+            for (int x = 0; x < listaParametros.Count; x++)
+            {
+                Valor v1 = listaParametros[x].interpretar();
+                KeyValuePair<string, Tipo> funcParam = func.Parametros.ElementAt(x);
+                string idParam = funcParam.Key;
+
+                if (funcParam.Value.isReference)
+                {
+                    if (listaParametros[x] is ReferenceAccess)
+                    {
+                        funcParam.Value.referby = ((ReferenceAccess)listaParametros[x]).lexeme;
+                        funcParam.Value.referHere = ((ReferenceAccess)listaParametros[x]).getEntornoValores();
+                    }
+                    else
+                        throw ErrorMessage("Deberia ser una variable el parametro no un valor literal. Razon: paso de variable por referencia.");
+                } else
+                    funcion.entornoValoresLocal.put(idParam, v1);
+            }
+
             vFunc.funcion.interpretar();
+
             return ((FunctionDefinition)vFunc.funcion).ValorRetorno;
         }
 
@@ -3341,7 +3464,16 @@ namespace SyntaxTree
 
     public abstract class Tipo
     {
+        public bool isConstant = false;
+        public bool isReference = false;
         public abstract bool esEquivalente(Tipo t);
+        public EnvValues ownerEnv, referHere;
+        public string referby;
+
+        public Tipo()
+        {
+            ownerEnv = Parser.entornoValores;
+        }
     }
 
     public class Entero : Tipo
@@ -3473,9 +3605,9 @@ namespace SyntaxTree
     public class Funcion : Tipo
     {
         public Tipo tipoRetorno;
-        public List<Tipo> Parametros;
+        public Dictionary<string,Tipo> Parametros;
 
-        public Funcion(Tipo retorno, List<Tipo> parametros)
+        public Funcion(Tipo retorno, Dictionary<string, Tipo> parametros)
         {
             tipoRetorno = retorno;
             Parametros = parametros;
@@ -3506,7 +3638,11 @@ namespace SyntaxTree
 
     public abstract class Valor
     {
+        public EnvValues referHere;
+        public string referby;
+
         public abstract Valor clone();
+        
     }
 
     public class ValorDefault : Valor

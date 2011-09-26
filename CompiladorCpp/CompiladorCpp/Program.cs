@@ -23,7 +23,7 @@ namespace CompiladorCpp
                     t = lex.nextToken();
                 }*/ 
 ///*
-                Parser parser = new Parser("intrepretation.txt");
+                Parser parser = new Parser("intrepretation2.txt");
                 parser.compile();
                 
                 Console.WriteLine("\n\nFIN");

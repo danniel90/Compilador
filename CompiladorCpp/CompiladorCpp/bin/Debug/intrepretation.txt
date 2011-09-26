@@ -10,10 +10,12 @@ struct foo {
 	string d;
 	bool e;
 	struct fooa fua;
-};*/
+};
 
 int x = 10;
-enum enumerador {suba, a = 4,b = x,c};
+enum enumerador {suba, a = 4,b = x,c};*/
+
+const int x = 0;
 
 
 int main(){	
@@ -32,6 +34,7 @@ int main(){
 	e.a = y;
 	
 	cout << e.a << endl;*/
+
 	
 
 	return 0;

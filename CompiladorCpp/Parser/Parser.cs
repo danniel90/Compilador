@@ -156,7 +156,7 @@ namespace Syntax
             }
             catch (Exception ex)
             {
-                throw new Exception(ex.ToString() + "|SENTENCE| Error en la declaracion de sentenceia linea:" + Lexer.line + " columna:" + Lexer.column);
+                throw new Exception(ex.ToString() + "|SENTENCE| Error en la declaracion de sentencia linea:" + Lexer.line + " columna:" + Lexer.column);
             }
         }
 
@@ -237,7 +237,9 @@ namespace Syntax
 
                 Tipo tipoArreglo2 = variable_array(tipoArreglo);
                 
-                return new Arreglo(tipoArreglo2, sizeExpr);
+                Arreglo array_t = new Arreglo(tipoArreglo2, sizeExpr);
+                //array_t.isReference = true;
+                return array_t;
             } else
                 return tipoArreglo;//null
         }        
@@ -290,6 +292,12 @@ namespace Syntax
             }
             return null;
             //null
+        }
+
+        Initializers const_variable_initializer()
+        {            
+            match("=");
+            return initializer();            
         }
 
         Initializers initializer()
@@ -349,7 +357,7 @@ namespace Syntax
             entornoValores = new EnvValues(entornoValores);
 
             match("(");
-            List<Tipo> paramsTypeList = parameter_type_list();
+            Dictionary<string,Tipo> paramsTypeList = parameter_type_list();
             match(")");            
 
             FunctionDefinition funcDefinition = new FunctionDefinition();
@@ -377,29 +385,39 @@ namespace Syntax
 
         #region parameters_type_list
 
-        List<Tipo> parameter_type_list()
+        Dictionary<string, Tipo> parameter_type_list()
         {
             bool isConstant = declaration_specifer();
-            Tipo tipo = parameter_type();
+            Tipo tipo = parameter_type();            
 
             if (tipo != null)
             {
-                List<Tipo> paramsList = new List<Tipo>();
+                Dictionary<string, Tipo> paramsList = new Dictionary<string, Tipo>();
 
                 bool isReference = reference();
                 string id = parameter_name();
-                Tipo tipoParam = variable_array(tipo);
+                
+                tipo.isConstant = isConstant;
+                tipo.isReference = isReference;
+
+                Tipo tipoParam = tipo;
+                if (!(tipo is Registro) && !(tipo is Enumeracion))
+                {
+                    tipoParam = variable_array(tipo);
+                    if (tipoParam is Arreglo)
+                        tipoParam.isReference = true;
+                }
                 
                 entornoTipos.put(id, tipoParam);
-                paramsList.Add(tipoParam);
+                paramsList.Add(id,tipoParam);
 
-                entornoValores.put(id, null);
+                //entornoValores.put(id, null);
                 
                 parameter_type_listP(paramsList);
                 return paramsList;
             }
             else
-                return new List<Tipo>();
+                return new Dictionary<string, Tipo>();
         }
 
         bool declaration_specifer()
@@ -425,8 +443,15 @@ namespace Syntax
                     return variable_type();
 
                 case TokenType.STRUCT:
+                    string strId = struct_declarator();
+                    Tipo varRecord = entornoTipos.get(strId);
+                    return varRecord;
+
                 case TokenType.ENUM:
-                    throw new NotImplementedException("Falta implementar strcuts y enums como parametros");
+                    string enumName = enum_declarator();
+                    Tipo varEnum = entornoTipos.get(enumName);
+                    return varEnum;
+                    //throw new NotImplementedException("Falta implementar strcuts y enums como parametros");
 
                 default:
                     return null;//null
@@ -450,7 +475,7 @@ namespace Syntax
             return parameterid;
         }
 
-        void parameter_type_listP(List<Tipo> Parameters)
+        void parameter_type_listP(Dictionary<string, Tipo> Parameters)
         {
             if (peek(","))
             {
@@ -461,12 +486,22 @@ namespace Syntax
                 bool isReference = reference();
                 
                 string id = parameter_name();
-                Tipo actualParameter = variable_array(actualType);
-                
-                entornoTipos.put(id, actualParameter);                
-                Parameters.Add(actualParameter);
 
-                entornoValores.put(id, null);
+                actualType.isConstant = isConstant;
+                actualType.isReference = isReference;
+                
+                Tipo actualParameter = actualType;
+                if (!(actualType is Registro) && !(actualType is Enumeracion))
+                {
+                    actualParameter = variable_array(actualType);
+                    if (actualParameter is Arreglo)
+                        actualParameter.isReference = true;
+                }
+
+                entornoTipos.put(id, actualParameter);
+                Parameters.Add(id,actualParameter);
+
+                //entornoValores.put(id, null);
                 
                 parameter_type_listP(Parameters);
             }            
@@ -929,7 +964,20 @@ namespace Syntax
         Sentence constant_declaration()
         {
             match("const"); 
-            return variable_declaration();
+            
+            Tipo tipoVariables = variable_type();
+            tipoVariables.isConstant = true;
+
+            string idVariable = direct_variable_declarator();
+            Tipo tipoVariable = variable_array(tipoVariables);
+            
+            Initializers const_init = const_variable_initializer();
+
+            VariableSubDeclarator primerVariable = new VariableSubDeclarator(tipoVariable, idVariable);
+            VariableDeclarator constDeclaracionVariable = new VariableDeclarator(primerVariable, const_init);
+            match(";");
+            entornoTipos.put(idVariable, tipoVariable);
+            return constDeclaracionVariable;
         }
 
         #endregion        
