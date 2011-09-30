@@ -21,7 +21,7 @@ namespace SyntaxTree
         }
     }
 
-    #region program    
+    #region program
 
     #region Sentence
 
@@ -78,7 +78,10 @@ namespace SyntaxTree
         {
             if (!(sentences is FunctionDefinition))//osea q hay otras sentences aparte del main
                 sentences.interpretar();
+
+            Parser.pilaValores.Push(new EnvValues(((FunctionDefinition)main).entornoValoresLocal));
             main.interpretar();
+            Parser.pilaValores.Pop();
         }
     }
 
@@ -131,11 +134,12 @@ namespace SyntaxTree
 
     public abstract class VariableDeclaration : Sentence
     {
-        public EnvValues entornoValores;
+        public Sentence enclosing;
 
         public VariableDeclaration()
         {
-            entornoValores = Parser.entornoValores;
+            //entornoValores = Parser.entornoValores;
+            enclosing = Parser.funcionActual;
         }
     }
 
@@ -162,7 +166,7 @@ namespace SyntaxTree
         {
             variableDeclarations.interpretar();
         }
-    }    
+    }
 
     public class VariableDeclarators : VariableDeclaration
     {
@@ -227,38 +231,18 @@ namespace SyntaxTree
             if (initialization != null)
             {
                 Valor v = initialization.interpretar();
-                this.entornoValores.put(declaration.id, v);
+                Parser.pilaValores.Peek().put(declaration.id, v);
             }
             else
             {
                 Valor v_default = getDefaultValue(declaration.tipo);
-                this.entornoValores.put(declaration.id, v_default);
+                //((FunctionDefinition)enclosing).entornoValoresLocal.put(declaration.id, v_default);
+                Parser.pilaValores.Peek().put(declaration.id, v_default);
             }
         }
 
         public static Valor getDefaultValue(Tipo tipo)
-        {
-            /*if (tipo is Entero)
-            {
-                return new ValorEntero(0);
-            }
-            else if (tipo is Flotante)
-            {
-                return new ValorFlotante(0);
-            }
-            else if (tipo is Booleano)
-            {
-                return new ValorBooleano(false);
-            }
-            else if (tipo is Caracter)
-            {
-                return new ValorCaracter('.');
-            }
-            else if (tipo is Cadena)
-            {
-                return new ValorCadena("");
-            }
-            else*/// if (tipo is Arreglo)
+        {            
             if (tipo is Arreglo)
             {
                 return getValorArreglo((Arreglo)tipo);
@@ -516,7 +500,7 @@ namespace SyntaxTree
         public FunctionDefinition() 
         {
             entornoTiposLocal = Parser.entornoTipos;
-            entornoValoresLocal = Parser.entornoValores;
+            entornoValoresLocal = Parser.pilaValores.Peek();
 
             ValorRetorno = null;
             returned = false;
@@ -589,32 +573,31 @@ namespace SyntaxTree
 
                 Tipo t_exp = exp.validarSemantico();
 
-                string id = ((ReferenceAccess)exp).lexeme;
-                EnvValues env = ((ReferenceAccess)exp).getEntornoValores();
+                string id = ((ReferenceAccess)exp).lexeme;                
 
                 if (t_exp is Entero)
                 {
                     int val = Convert.ToInt32(line);
-                    env.set(id, new ValorEntero(val));
+                    ((ReferenceAccess)exp).setElem(new ValorEntero(val));
                 }
                 else if (t_exp is Flotante)
                 {
                     float val = float.Parse(line, System.Globalization.CultureInfo.InvariantCulture.NumberFormat);
-                    env.set(id, new ValorFlotante(val));
+                    ((ReferenceAccess)exp).setElem(new ValorFlotante(val));
                 }
                 else if (t_exp is Booleano)
                 {
                     bool val = Convert.ToBoolean(Convert.ToInt32(line));
-                    env.set(id, new ValorBooleano(val));
+                    ((ReferenceAccess)exp).setElem(new ValorBooleano(val));
                 }
                 else if (t_exp is Caracter)
                 {
                     char val = Convert.ToChar(line);
-                    env.set(id, new ValorCaracter(val));
+                    ((ReferenceAccess)exp).setElem(new ValorCaracter(val));
                 }
                 else //if (t_exp is Cadena)
                 {
-                    env.set(id, new ValorCadena(line));
+                    ((ReferenceAccess)exp).setElem(new ValorCadena(line));
                 }
             }
         }
@@ -705,14 +688,8 @@ namespace SyntaxTree
         }
 
         public override void interpretar()
-        {
-            if (returnedBreakContinue()) 
-                return;
+        {            
             stmt1.interpretar();
-
-
-            if (returnedBreakContinue())
-                return;
             stmt2.interpretar();
         }
     }
@@ -775,25 +752,26 @@ namespace SyntaxTree
 
     public abstract class FunctionStatement : Statement
     {
-        public EnvValues entornoValoresLocal;
-
         public FunctionStatement()
         {
-            entornoValoresLocal = Parser.entornoValores;
-        }
-
-        protected void clearEnvValues()
-        {
-            entornoValoresLocal.tablaValores.Clear();
+            //((FunctionDefinition)this.enclosingFunction).entornoValoresLocal = new EnvValues(((FunctionDefinition)this.enclosingFunction).entornoValoresLocal);
         }
     }
 
-    public class IfStatement : FunctionStatement
+    /*public class IfStatement : FunctionStatement
     {
         public Expr condicion;
         public Sentence BloqueVerdadero;
 
+        public IfStatement() { }
+
         public IfStatement(Expr cond, Sentence bloqueTrue)
+        {
+            condicion = cond;
+            BloqueVerdadero = bloqueTrue;
+        }
+
+        public void IfInit(Expr cond, Sentence bloqueTrue)
         {
             condicion = cond;
             BloqueVerdadero = bloqueTrue;
@@ -826,7 +804,7 @@ namespace SyntaxTree
                 ValorEntero vFrCtrl2 = (ValorEntero)vFrCtrl;
 
                 if (vFrCtrl2.valor > 0)
-                    BloqueVerdadero.interpretar();
+                    BloqueVerdadero.interpretar();                
             }
             else if (vFrCtrl is ValorFlotante)
             {
@@ -841,11 +819,9 @@ namespace SyntaxTree
 
                 if (vFrCtrl2.valor == true)
                     BloqueVerdadero.interpretar();
-            }
-
-            clearEnvValues();
+            }            
         }
-    }
+    }*/
 
     public class IfElseStatement : FunctionStatement
     {
@@ -854,6 +830,15 @@ namespace SyntaxTree
         public Sentence BloqueFalso;
 
         public IfElseStatement(Expr cond, Sentence bloqueTrue, Sentence bloqueFalse)
+        {
+            condicion = cond;
+            BloqueVerdadero = bloqueTrue;
+            BloqueFalso = bloqueFalse;
+        }
+
+        public IfElseStatement() { }
+
+        public void IfElseInit(Expr cond, Sentence bloqueTrue, Sentence bloqueFalse)
         {
             condicion = cond;
             BloqueVerdadero = bloqueTrue;
@@ -873,13 +858,17 @@ namespace SyntaxTree
                 throw ErrorMessage("La condicion del if deberia ser de tipo booleano/numerico. Tipo:" + t.ToString());
 
             BloqueVerdadero.validarSemantica();
-            BloqueFalso.validarSemantica();
+
+            if (BloqueFalso != null)
+                BloqueFalso.validarSemantica();
         }
 
         public override void interpretar()
         {
             if (returnedBreakContinue())
                 return;
+            
+            Parser.pilaValores.Push(new EnvValues(Parser.pilaValores.Peek()));
 
             Valor vFrCtrl = condicion.interpretar();
 
@@ -888,29 +877,46 @@ namespace SyntaxTree
                 ValorEntero vFrCtrl2 = (ValorEntero)vFrCtrl;
 
                 if (vFrCtrl2.valor > 0)
-                    BloqueVerdadero.interpretar();
+                {
+                    BloqueVerdadero.interpretar();                    
+                }
                 else
-                    BloqueFalso.interpretar();
+                {
+                    if (BloqueFalso != null)
+                        BloqueFalso.interpretar();
+                }
             }
             else if (vFrCtrl is ValorFlotante)
             {
                 ValorFlotante vFrCtrl2 = (ValorFlotante)vFrCtrl;
 
                 if (vFrCtrl2.valor > 0)
+                {
                     BloqueVerdadero.interpretar();
+                }
                 else
-                    BloqueFalso.interpretar();
+                {
+                    if (BloqueFalso != null)
+                        BloqueFalso.interpretar();
+                }
             }
             else
             {
                 ValorBooleano vFrCtrl2 = (ValorBooleano)vFrCtrl;
 
                 if (vFrCtrl2.valor == true)
+                {
                     BloqueVerdadero.interpretar();
+                }
                 else
-                    BloqueFalso.interpretar();
+                {
+                    if (BloqueFalso != null)
+                        BloqueFalso.interpretar();
+                }
             }
-            clearEnvValues();
+
+            Parser.pilaValores.Pop();
+            //clearEnvValues();
         }
     }
 
@@ -967,6 +973,8 @@ namespace SyntaxTree
 
             while (true)
             {
+                Parser.pilaValores.Push(new EnvValues(Parser.pilaValores.Peek()));
+
                 compoundStatement.interpretar();
                 
                 Valor vFrCtrl = expresion.interpretar();
@@ -976,30 +984,47 @@ namespace SyntaxTree
                     ValorEntero vFrCtrl2 = (ValorEntero)vFrCtrl;
 
                     if (vFrCtrl2.valor <= 0)
+                    {
+                        Parser.pilaValores.Pop();
                         break;
+                    }
                 }
                 else if (vFrCtrl is ValorFlotante)
                 {
                     ValorFlotante vFrCtrl2 = (ValorFlotante)vFrCtrl;
 
                     if (vFrCtrl2.valor <= 0)
+                    {
+                        Parser.pilaValores.Pop();
                         break;
+                    }
                 }
                 else
                 {
                     ValorBooleano vFrCtrl2 = (ValorBooleano)vFrCtrl;
 
                     if (vFrCtrl2.valor == false)
+                    {
+                        Parser.pilaValores.Pop();
                         break;
+                    }
                 }
-                
+
                 if (dobreak)
+                {
+                    Parser.pilaValores.Pop();
                     break;
+                }
 
                 if (((FunctionDefinition)enclosingFunction).returned)
+                {
+                    Parser.pilaValores.Pop();
                     return;
+                }
+
+                Parser.pilaValores.Pop();
             }
-            clearEnvValues();
+            //clearEnvValues();
         }
     }
 
@@ -1041,8 +1066,10 @@ namespace SyntaxTree
             if (returnedBreakContinue())
                 return;
 
+            Parser.pilaValores.Push(new EnvValues(Parser.pilaValores.Peek()));
             while (true)
-            {
+            {                
+
                 Valor vFrCtrl = expresion.interpretar();
 
                 if (vFrCtrl is ValorEntero)
@@ -1050,31 +1077,45 @@ namespace SyntaxTree
                     ValorEntero vFrCtrl2 = (ValorEntero)vFrCtrl;
 
                     if (vFrCtrl2.valor <= 0)
+                    {
+                        //Parser.pilaValores.Pop();
                         break;
+                    }
                 }
                 else if (vFrCtrl is ValorFlotante)
                 {
                     ValorFlotante vFrCtrl2 = (ValorFlotante)vFrCtrl;
 
                     if (vFrCtrl2.valor <= 0)
+                    {
+                        //Parser.pilaValores.Pop();
                         break;
+                    }
                 }
                 else
                 {
                     ValorBooleano vFrCtrl2 = (ValorBooleano)vFrCtrl;
 
                     if (vFrCtrl2.valor == false)
+                    {
+                        //Parser.pilaValores.Pop();
                         break;
+                    }
                 }
                 compoundstatement.interpretar();
                 
                 if (dobreak)
                     break;
-                
+
                 if (((FunctionDefinition)enclosingFunction).returned)
+                {
+                    Parser.pilaValores.Pop();
                     return;
+                }
+                Parser.pilaValores.Peek().tablaValores.Clear();
             }
-            clearEnvValues();
+            Parser.pilaValores.Pop();
+            //clearEnvValues();
         }
     }
 
@@ -1139,6 +1180,8 @@ namespace SyntaxTree
             if (returnedBreakContinue())
                 return;
 
+            Parser.pilaValores.Push(new EnvValues(Parser.pilaValores.Peek()));
+
             if (forInitialization != null)
                 forInitialization.interpretar();
             
@@ -1153,36 +1196,63 @@ namespace SyntaxTree
                         ValorEntero vFrCtrl2 = (ValorEntero)vFrCtrl;
 
                         if (vFrCtrl2.valor <= 0)
+                        {
                             break;
+                        }
                     }
                     else if (vFrCtrl is ValorFlotante)
                     {
                         ValorFlotante vFrCtrl2 = (ValorFlotante)vFrCtrl;
 
                         if (vFrCtrl2.valor <= 0)
+                        {
                             break;
+                        }
                     }
                     else
                     {
                         ValorBooleano vFrCtrl2 = (ValorBooleano)vFrCtrl;
 
                         if (vFrCtrl2.valor == false)
+                        {
                             break;
+                        }
                     }
                 }
-                
+                Parser.pilaValores.Push(new EnvValues(Parser.pilaValores.Peek()));
+
+                /*EnvValues savedEnv = new EnvValues(((ExpressionStatement)forControl).expresion.entornoValoresActual.previo);
+
+                for (int x = 0; x < ((ExpressionStatement)forControl).expresion.entornoValoresActual.tablaValores.Count; x++ ){
+                    KeyValuePair<string, Valor> kvp = ((ExpressionStatement)forControl).expresion.entornoValoresActual.tablaValores.ElementAt(x);
+                    savedEnv.tablaValores.Add(kvp.Key, kvp.Value);
+                }*/
+
                 CompoundStatement.interpretar();
 
+                //clearEnvValues();
+
+                //((FunctionDefinition)this.enclosingFunction).entornoValoresLocal = savedEnv;
+
+                Parser.pilaValores.Pop();
+
                 if (dobreak)
+                {
                     break;
+                }
 
                 if (((FunctionDefinition)enclosingFunction).returned)
+                {
+                    Parser.pilaValores.Pop();
                     return;
+                }
                 
                 if (forIteration != null)
-                    ((ExpressionStatement)forIteration).interpretar();
+                    ((ExpressionStatement)forIteration).interpretar();                                
+                //this.entornoValoresLocal2.tablaValores.Clear();
             }
-            clearEnvValues();
+            
+            Parser.pilaValores.Pop();
         }
     }
 
@@ -1269,6 +1339,8 @@ namespace SyntaxTree
 
             if (expresion != null){                
                 Valor v = expresion.interpretar();
+                Console.WriteLine("v = " + v.ToString());
+
                 ((FunctionDefinition)enclosingFunction).ValorRetorno = v;
             }
 
@@ -1285,7 +1357,6 @@ namespace SyntaxTree
         public string strId, strVarId;
         public Tipo tipo;
         public Valor valorRegistro;
-        public EnvValues entornoValoresActual;
 
         public StructVariableDeclaration(string strid,string strvarname, Tipo tipostr, Valor valRegistro)
         {
@@ -1293,7 +1364,6 @@ namespace SyntaxTree
             strVarId = strvarname;
             tipo = tipostr;
             valorRegistro = valRegistro;
-            entornoValoresActual = Parser.entornoValores;
         }
 
         public override string genCode()
@@ -1308,8 +1378,8 @@ namespace SyntaxTree
         }
 
         public override void interpretar()
-        {            
-            entornoValoresActual.put(strVarId, valorRegistro);
+        {                        
+            Parser.pilaValores.Peek().put(strVarId, valorRegistro);
         }
     }
 
@@ -1441,13 +1511,22 @@ namespace SyntaxTree
     {
 
         public EnvTypes entornoTiposActual;
-        public EnvValues entornoValoresActual;
+        //public EnvValues entornoValoresActual;
+        public Sentence enclosing;
 
         public Expr()
         {
-            entornoTiposActual = Parser.entornoTipos;
-            entornoValoresActual = Parser.entornoValores;
+            entornoTiposActual = Parser.entornoTipos;            
+            enclosing = Parser.funcionActual;
         }
+
+        /*protected void initEnvValores()
+        {            
+            if (enclosing != null)
+                entornoValoresActual = ((FunctionDefinition)enclosing).entornoValoresLocal;
+            else
+                entornoValoresActual = Parser.entornoValores;
+        }*/
 
         public void print()
         {
@@ -1581,7 +1660,7 @@ namespace SyntaxTree
         }
 
         public override Valor interpretar()
-        {
+        {            
             Valor v = value.interpretar();
 
             ReferenceAccess t_id = (ReferenceAccess)Id;
@@ -1645,11 +1724,12 @@ namespace SyntaxTree
 
         public override Valor interpretar()
         {
+            //initEnvValores();
             Valor v = value.interpretar();
 
             ReferenceAccess t_id = (ReferenceAccess)Id;
 
-            Valor oldval = this.entornoValoresActual.get(t_id.lexeme);
+            Valor oldval = Parser.pilaValores.Peek().get(t_id.lexeme);
 
             Valor newval;
             if (oldval is ValorEntero)
@@ -1702,12 +1782,12 @@ namespace SyntaxTree
         }
 
         public override Valor interpretar()
-        {
+        {            
             Valor v = value.interpretar();
 
             ReferenceAccess t_id = (ReferenceAccess)Id;
 
-            Valor oldval = this.entornoValoresActual.get(t_id.lexeme);
+            Valor oldval = Parser.pilaValores.Peek().get(t_id.lexeme);
 
             Valor newval;
             if (oldval is ValorEntero)                
@@ -1761,12 +1841,13 @@ namespace SyntaxTree
 
         public override Valor interpretar()
         {
+            //initEnvValores();
             Valor v = value.interpretar();
 
             
             ReferenceAccess t_id = (ReferenceAccess)Id;
 
-            Valor oldval = this.entornoValoresActual.get(t_id.lexeme);
+            Valor oldval = Parser.pilaValores.Peek().get(t_id.lexeme); //this.entornoValoresActual.get(t_id.lexeme);
 
             Valor newval;
 
@@ -1961,7 +2042,7 @@ namespace SyntaxTree
         }
 
         public override Valor interpretar()
-        {
+        {            
             Valor v_izq = leftExpr.interpretar();
             Valor v_der = rightExpr.interpretar();
 
@@ -2012,6 +2093,7 @@ namespace SyntaxTree
 
         public override Tipo validarSemantico()
         {
+
             Tipo t_izq = leftExpr.validarSemantico();
             Tipo t_der = rightExpr.validarSemantico();
 
@@ -2775,7 +2857,7 @@ namespace SyntaxTree
         }
 
         public override Valor interpretar()
-        {            
+        {
  	        Valor val = this.Id.interpretar();
 
             Valor newVal;
@@ -2849,7 +2931,7 @@ namespace SyntaxTree
         }
         
         public override Valor interpretar()
-        {            
+        {
  	        Valor val = this.Id.interpretar();
             //EnvValues env = ((ReferenceAccess)Id).getEntornoValores();
 
@@ -2901,7 +2983,7 @@ namespace SyntaxTree
         }
 
         public override Valor interpretar()
-        {                     
+        {   
  	        Valor val = this.Id.interpretar();
 
             Valor newVal;
@@ -3054,6 +3136,7 @@ namespace SyntaxTree
     public abstract class ReferenceAccess : Expr
     {
         public string lexeme;
+        public EnvValues entornoStr;
 
         public ReferenceAccess(string lex)
         {
@@ -3061,12 +3144,17 @@ namespace SyntaxTree
         }
 
         public abstract void setElem(Valor valor);
+        
+        public abstract void setElem2(Valor valor);
+
+        public abstract Valor interpretar2();
 
         public abstract EnvValues getEntornoValores();
     }    
 
     public class Id : ReferenceAccess
     {
+        
         public Id(string lex) : base(lex) { }
 
         public override string genCode()
@@ -3082,27 +3170,39 @@ namespace SyntaxTree
 
         public override Valor interpretar()
         {
+            //initEnvValores();
             Tipo t = entornoTiposActual.get(lexeme);
 
             if (t.isReference)
-                return t.referHere.get(t.referby);
+                return Parser.pilaValores.Peek().get(t.referby);//t.referHere.get(t.referby);
             else
-                return this.entornoValoresActual.get(this.lexeme);
+                return Parser.pilaValores.Peek().get(this.lexeme);//this.entornoValoresActual.get(this.lexeme);
+        }
+
+        public override void setElem2(Valor valor)
+        {
+            throw ErrorMessage("No es necesaria!!. ID.");
+        }
+
+        public override Valor interpretar2()
+        {
+            throw ErrorMessage("No es necesaria!!. ID.");
         }
 
         public override EnvValues getEntornoValores()
         {
-            return this.entornoValoresActual;
+            return Parser.pilaValores.Peek();
         }
 
         public override void setElem(Valor valor)
         {
+            //initEnvValores();
             Tipo t = entornoTiposActual.get(lexeme);
 
             if (t.isReference)
                 t.referHere.set(t.referby, valor);
-            else 
-                this.entornoValoresActual.set(this.lexeme, valor);
+            else
+                Parser.pilaValores.Peek().set(this.lexeme, valor);//this.entornoValoresActual.set(this.lexeme, valor);
         }
     }    
 
@@ -3152,7 +3252,8 @@ namespace SyntaxTree
 
         public override Valor interpretar()
         {
-            Valor v = this.entornoValoresActual.get(this.lexeme);//1
+            //initEnvValores();
+            Valor v = Parser.pilaValores.Peek().get(this.lexeme);//entornoStr.get(this.lexeme);//1
 
             if (v is ValorRegistro)
             {
@@ -3160,8 +3261,31 @@ namespace SyntaxTree
 
                 if (v2 is ValorRegistro)
                 {
-                    member.entornoValoresActual = ((ValorRegistro)v).valor;
-                    return member.interpretar();
+                    member.entornoStr = ((ValorRegistro)v).valor;
+                    return member.interpretar2();
+                }
+                else
+                    return v2;
+            }
+            else
+            {
+                Valor v2 = ((ValorEnumeracion)v).valor.get(member.lexeme);
+                return v2;
+            }
+        }
+
+        public override Valor interpretar2()
+        {
+            Valor v = entornoStr.get(this.lexeme);//1
+
+            if (v is ValorRegistro)
+            {
+                Valor v2 = ((ValorRegistro)v).valor.get(member.lexeme);//2
+
+                if (v2 is ValorRegistro)
+                {
+                    member.entornoStr = ((ValorRegistro)v).valor;
+                    return member.interpretar2();
                 }
                 else
                     return v2;
@@ -3175,23 +3299,40 @@ namespace SyntaxTree
 
         public override EnvValues getEntornoValores()
         {
-            ValorRegistro v = (ValorRegistro)this.entornoValoresActual.get(this.lexeme);
+            ValorRegistro v = (ValorRegistro)Parser.pilaValores.Peek().get(this.lexeme);
             
             Valor v2 = v.valor.get(member.lexeme);
 
             if (v2 is ValorRegistro)
             {
                 ValorRegistro record = (ValorRegistro)v2;
-                member.entornoValoresActual = record.valor;
-                return member.getEntornoValores();
+                member.entornoStr = record.valor;
+                return ((MiembroRegistro)member).getEntornoValores2();
             }
             else
-                return this.entornoValoresActual;
+                return Parser.pilaValores.Peek();//this.entornoValoresActual;
+        }
+
+        private EnvValues getEntornoValores2()
+        {
+            ValorRegistro v = (ValorRegistro)this.entornoStr.get(this.lexeme);
+
+            Valor v2 = v.valor.get(member.lexeme);
+
+            if (v2 is ValorRegistro)
+            {
+                ValorRegistro record = (ValorRegistro)v2;
+                member.entornoStr = record.valor;
+                return ((MiembroRegistro)member).getEntornoValores2();
+            }
+            else
+                return this.entornoStr;
         }
 
         public override void setElem(Valor valor)
         {
-            Valor v = this.entornoValoresActual.get(this.lexeme);
+            //initEnvValores();
+            Valor v = Parser.pilaValores.Peek().get(this.lexeme);
 
             if (v is ValorRegistro)
             {
@@ -3199,8 +3340,32 @@ namespace SyntaxTree
 
                 if (v2 is ValorRegistro)
                 {
-                    member.entornoValoresActual = ((ValorRegistro)v).valor;
-                    member.setElem(valor);
+                    member.entornoStr = ((ValorRegistro)v).valor;
+                    member.setElem2(valor);
+                }
+                else
+                    ((ValorRegistro)v).valor.set(member.lexeme, valor);
+            }
+            else
+            {
+                /*Valor v2 = ((ValorEnumeracion)v).valor.get(member.lexeme);
+
+                ((ValorEnumeracion)v).valor.set(member.lexeme, valor);*/
+            }
+        }
+
+        public override void setElem2(Valor valor)
+        {
+            Valor v = this.entornoStr.get(this.lexeme);
+
+            if (v is ValorRegistro)
+            {
+                Valor v2 = ((ValorRegistro)v).valor.get(member.lexeme);
+
+                if (v2 is ValorRegistro)
+                {
+                    member.entornoStr = ((ValorRegistro)v).valor;
+                    member.setElem2(valor);
                 }
                 else
                     ((ValorRegistro)v).valor.set(member.lexeme, valor);
@@ -3261,13 +3426,18 @@ namespace SyntaxTree
                 return t;
         }
 
+        public override void setElem2(Valor valor)
+        {
+            throw ErrorMessage("No es necesario.");
+        }
+
         public override Valor interpretar()
         {
             Tipo t = entornoTiposActual.get(lexeme);
 
             if (t.isReference)
             {
-                ValorArreglo v = (ValorArreglo)t.referHere.get(t.referby);//1
+                ValorArreglo v = (ValorArreglo)Parser.pilaValores.Peek().get(t.referby);//t.referHere.get(t.referby);//1
                 //return t.referHere.get(t.referby);
                 
                 Valor ret = v;
@@ -3290,7 +3460,7 @@ namespace SyntaxTree
             {
                 //return this.entornoValoresActual.get(this.lexeme);
 
-                ValorArreglo v = (ValorArreglo)this.entornoValoresActual.get(this.lexeme);//1
+                ValorArreglo v = (ValorArreglo)Parser.pilaValores.Peek().get(this.lexeme);//1
 
                 Valor ret = v;
                 for (int x = 0; x < IndexList.Count; x++)
@@ -3310,14 +3480,18 @@ namespace SyntaxTree
             }
         }
 
-        public override void setElem(Valor valor)
+        public override Valor interpretar2()
         {
+            throw ErrorMessage("No es necesario.");
+        }
 
+        public override void setElem(Valor valor)
+        {            
             Tipo t = entornoTiposActual.get(lexeme);
 
             if (t.isReference)
             {
-                ValorArreglo v = (ValorArreglo)t.referHere.get(t.referby);//1
+                ValorArreglo v = (ValorArreglo)Parser.pilaValores.Peek().get(t.referby);//t.referHere.get(t.referby);//1
 
                 Valor ret = v;
 
@@ -3343,7 +3517,7 @@ namespace SyntaxTree
             {
                 //this.entornoValoresActual.set(this.lexeme, valor);
 
-                ValorArreglo v = (ValorArreglo)this.entornoValoresActual.get(this.lexeme);//1
+                ValorArreglo v = (ValorArreglo)Parser.pilaValores.Peek().get(this.lexeme);//1
 
                 Valor ret = v;
 
@@ -3368,7 +3542,7 @@ namespace SyntaxTree
 
         public override EnvValues getEntornoValores()
         {
-            return this.entornoValoresActual;
+            return Parser.pilaValores.Peek();
         }
     }
 
@@ -3384,6 +3558,16 @@ namespace SyntaxTree
         public override string genCode()
         {
             return "LlamadaFuncion";
+        }
+
+        public override Valor interpretar2()
+        {
+            throw ErrorMessage("No es necesario. Llamada Funcion");
+        }
+
+        public override void setElem2(Valor valor)
+        {
+            throw ErrorMessage("No es necesarion. Llamada Funcion.");
         }
 
         public override Tipo validarSemantico()
@@ -3415,12 +3599,17 @@ namespace SyntaxTree
 
         public override Valor interpretar()
         {
-            ValorFuncion vFunc = (ValorFuncion)this.entornoValoresActual.get(this.lexeme);
+            //initEnvValores();
+            ValorFuncion vFunc = (ValorFuncion)Parser.pilaValores.Peek().get(this.lexeme);
             
             FunctionDefinition funcion = ((FunctionDefinition)vFunc.funcion);
 
             Funcion func = (Funcion)entornoTiposActual.get(this.lexeme);
 
+            //EnvValues savedEnvVals = funcion.entornoValoresLocal;
+            //funcion.entornoValoresLocal = new EnvValues(funcion.entornoValoresLocal);
+            Parser.pilaValores.Push(new EnvValues(Parser.pilaValores.Peek()));
+            
             for (int x = 0; x < listaParametros.Count; x++)
             {
                 Valor v1 = listaParametros[x].interpretar();
@@ -3431,17 +3620,33 @@ namespace SyntaxTree
                 {
                     if (listaParametros[x] is ReferenceAccess)
                     {
-                        funcParam.Value.referby = ((ReferenceAccess)listaParametros[x]).lexeme;
-                        funcParam.Value.referHere = ((ReferenceAccess)listaParametros[x]).getEntornoValores();
+                        Tipo t1 = ((ReferenceAccess)listaParametros[x]).validarSemantico();
+                        if (t1.isReference)
+                        {
+                            funcParam.Value.referby = t1.referby;
+                            //funcParam.Value.referHere = t1.referHere;
+                        }
+                        else
+                        {
+                            funcParam.Value.referby = ((ReferenceAccess)listaParametros[x]).lexeme;
+                            //funcParam.Value.referHere = ((ReferenceAccess)listaParametros[x]).getEntornoValores();
+                        }
                     }
                     else
                         throw ErrorMessage("Deberia ser una variable el parametro no un valor literal. Razon: paso de variable por referencia.");
-                } else
-                    funcion.entornoValoresLocal.put(idParam, v1);
+                }
+                else
+                    //funcion.entornoValoresLocal.put(idParam, v1);
+                    Parser.pilaValores.Peek().put(idParam, v1);
             }
 
             vFunc.funcion.interpretar();
 
+            //funcion.entornoValoresLocal = savedEnvVals;
+            Parser.pilaValores.Pop();
+            //Parser.pilaValores.Peek().tablaValores.Clear();
+            
+            ((FunctionDefinition)vFunc.funcion).returned = false;
             return ((FunctionDefinition)vFunc.funcion).ValorRetorno;
         }
 

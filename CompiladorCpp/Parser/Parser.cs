@@ -20,9 +20,11 @@ namespace Syntax
         public static EnvTypes entornoTipos;
         public static EnvValues entornoValores; 
 
-        public static Sentence funcionActual = null;
+        public static Sentence funcionActual = null;        
         public static Sentence cicloActual = null;
         public static Sentence main = null;
+
+        public static Stack<EnvValues> pilaValores;
 
         #endregion
 
@@ -33,7 +35,10 @@ namespace Syntax
             lex = new Lexer(path);
             entornoTipos = new EnvTypes(null);
             entornoValores = new EnvValues(null);
+            pilaValores = new Stack<EnvValues>();
+            pilaValores.Push(new EnvValues(null));
         }
+
         #endregion
 
         #region funciones
@@ -231,7 +236,13 @@ namespace Syntax
             {
                 match("["); 
                 //Expr sizeExpr = expr();
-                int sizeExpr = Int32.Parse(currentToken.Lexema);
+                int ind;
+
+                bool parseo = Int32.TryParse(currentToken.Lexema,out ind);
+                if (parseo == false)
+                    throw new Exception("Error al parsear la cadena a entero currentToken:\"" + currentToken.Lexema + "\".");
+
+                int sizeExpr = ind;
                 match(TokenType.INTEGER_LITERAL);
                 match("]");
 
@@ -353,12 +364,14 @@ namespace Syntax
             EnvTypes savedEnvTypes = entornoTipos;
             entornoTipos = new EnvTypes(entornoTipos);
 
-            EnvValues savedEnvValues = entornoValores;
-            entornoValores = new EnvValues(entornoValores);
+            //EnvValues savedEnvValues = entornoValores;
+            //entornoValores = new EnvValues(entornoValores);
+            EnvValues savedEnvValues = Parser.pilaValores.Peek();
+            Parser.pilaValores.Push(new EnvValues(Parser.pilaValores.Peek()));
 
             match("(");
             Dictionary<string,Tipo> paramsTypeList = parameter_type_list();
-            match(")");            
+            match(")");
 
             FunctionDefinition funcDefinition = new FunctionDefinition();
             funcionActual = funcDefinition;
@@ -368,17 +381,23 @@ namespace Syntax
             funcDefinition.init(id, retorno, compoundStmnt);
             entornoTipos = savedEnvTypes;
             entornoValores = savedEnvValues;
-
+            
+            
+            Parser.pilaValores.Pop();
+            
             Funcion funcion = new Funcion(retorno, paramsTypeList);
             entornoTipos.put(id, funcion);
 
             ValorFuncion funcionVal = new ValorFuncion(funcDefinition);
-            entornoValores.put(id, funcionVal);
+            //entornoValores.put(id, funcionVal);
+            Parser.pilaValores.Peek().put(id, funcionVal);
 
             funcionActual = null;
 
             if (id == "main")
-                main = funcDefinition;
+            {
+                main = funcDefinition;                
+            }
 
             return funcDefinition;
         }
@@ -601,17 +620,7 @@ namespace Syntax
                 case TokenType.ENUM:
                     Sentence sentence = enum_declaration();
                     match(";");
-                    return sentence;
-                    /*string enumName = enum_declarator();
-                    Tipo varEnum = entornoTipos.get(enumName);
-                    Valor valEnum = entornoValores.get(enumName);
-
-                    string enumVarName = currentToken.Lexema;
-                    match(TokenType.ID);
-
-                    EnumerationVariableDeclaration enumVarDeclaration = new EnumerationVariableDeclaration(enumName, enumVarName, varEnum, valEnum);
-                    entornoTipos.put(enumVarName, varEnum);
-                    return enumVarDeclaration;*/
+                    return sentence;   
 
                 case TokenType.DECREMENT:
                 case TokenType.INCREMENT:
@@ -656,11 +665,6 @@ namespace Syntax
                     Sentence sCout = cout();
                     match(";");
                     return sCout;
-
-                /*case TokenType.SEMICOLON:
-                    Sentence empty = new EmptySentence();
-                    match(";");
-                    return empty;*/
                 
                 default:
                     //return null;
@@ -708,9 +712,8 @@ namespace Syntax
         {
             EnvTypes savedEnvTypes = entornoTipos;
             entornoTipos = new EnvTypes(entornoTipos);
-            
-            EnvValues savedEnvValues = entornoValores;
-            entornoValores = new EnvValues(entornoValores);
+
+            Sentence savedFunction = funcionActual;
 
             match("if");
             match("(");
@@ -719,8 +722,34 @@ namespace Syntax
             Sentence trueBlock = if_compound_statement();
 
             entornoTipos = savedEnvTypes;
-            entornoValores = savedEnvValues;
-            return elseif_(expresion, trueBlock);
+
+            if (peek("else"))
+            {
+                match("else");
+
+                if (peek("if"))
+                {
+                    EnvTypes savedEnvTypes2 = entornoTipos;
+                    entornoTipos = new EnvTypes(entornoTipos);
+
+                    Sentence falseBlock = if_statement();
+                    
+                    entornoTipos = savedEnvTypes2;
+                    return new IfElseStatement(expresion, trueBlock, falseBlock);
+                }
+                else
+                {
+                    EnvTypes savedEnvTypes3 = entornoTipos;
+                    entornoTipos = new EnvTypes(entornoTipos);
+
+                    Sentence falseBLock = if_compound_statement();
+                    
+                    entornoTipos = savedEnvTypes3;
+                    return new IfElseStatement(expresion, trueBlock, falseBLock);
+                }
+            }
+            else
+                return new IfElseStatement(expresion, trueBlock, null);            
         }
 
         Sentence if_compound_statement()
@@ -730,98 +759,15 @@ namespace Syntax
             else
                 return statement();
         }
-
-        Sentence elseif_(Expr condicion, Sentence trueBlock)
-        {
-            if (peek("else"))
-            {                
-                match("else");
-
-                Sentence falseBLock = elseif_P(condicion, trueBlock);
-                return new IfElseStatement(condicion, trueBlock, falseBLock);                
-            }
-            else
-                return new IfStatement(condicion, trueBlock);
-        }
-
-        Sentence elseif_P(Expr condicion, Sentence trueBlock)
-        {
-            if (peek("if"))
-            {
-                return if_statement();
-            }
-            else
-            {
-                EnvTypes savedEnvTypes = entornoTipos;
-                entornoTipos = new EnvTypes(entornoTipos);
-
-                EnvValues savedEnvValues = entornoValores;
-                entornoValores = new EnvValues(entornoValores);
-
-                Sentence falseBLock = if_compound_statement();
-                
-                entornoTipos = savedEnvTypes;
-                entornoValores = savedEnvValues;
-                return falseBLock;
-            }
-        }
-
-        #endregion
-
-        #region return, continue, break statements
-
-        Sentence return_statement()
-        {
-            match("return");
-            Expr expresion = return_statementP();
-
-            ReturnStatement returnStmnt = new ReturnStatement(expresion);
-            //funcionActual = null;
-            return returnStmnt;
-        }
-
-        Expr return_statementP()
-        {
-            switch (currentToken.Tipo)
-            {
-                case TokenType.INCREMENT:
-                case TokenType.DECREMENT:
-                case TokenType.ID:
-                case TokenType.REAL_LITERAL:
-                case TokenType.INTEGER_LITERAL:
-                case TokenType.LEFT_PARENTHESIS:
-                    Expr expresion = expr();
-                    return expresion;
-
-                default:
-                    return null;
-            }
-            //null
-        }
-
-        Sentence break_statement()
-        {
-            match("break");
-            return new BreakStatement();
-        }
-
-        Sentence continue_statement()
-        {
-            match("continue"); 
-            return new ContinueStatement();
-        }
-
-        #endregion
+        
+        #endregion      
 
         #region while_statement
 
         Sentence while_statement()
         {
             EnvTypes savedEnvTypes = entornoTipos;
-            entornoTipos = new EnvTypes(entornoTipos);
-
-            EnvValues savedEnvValues = entornoValores;
-            entornoValores = new EnvValues(entornoValores);
+            entornoTipos = new EnvTypes(entornoTipos);            
 
             WhileStatement whileStmnt = new WhileStatement();
             Sentence cicloAnterior = cicloActual;
@@ -837,7 +783,7 @@ namespace Syntax
             cicloActual = cicloAnterior;
 
             entornoTipos = savedEnvTypes;
-            entornoValores = savedEnvValues;
+            
             return whileStmnt;
         }
 
@@ -882,8 +828,8 @@ namespace Syntax
             EnvTypes savedEnvTypes = entornoTipos;
             entornoTipos = new EnvTypes(entornoTipos);
 
-            EnvValues savedEnvValues = entornoValores;
-            entornoValores = new EnvValues(entornoValores);
+            EnvValues savedEnvValues = ((FunctionDefinition)funcionActual).entornoValoresLocal;
+            ((FunctionDefinition)funcionActual).entornoValoresLocal = new EnvValues(((FunctionDefinition)funcionActual).entornoValoresLocal);
 
             ForStatement forStmnt = new ForStatement();
             Sentence cicloAnterior = cicloActual;
@@ -898,13 +844,18 @@ namespace Syntax
             Sentence forIteration = for_iteration();
             match(")");
 
+            EnvValues savedEnvValues2 = ((FunctionDefinition)funcionActual).entornoValoresLocal;
+            ((FunctionDefinition)funcionActual).entornoValoresLocal = new EnvValues(((FunctionDefinition)funcionActual).entornoValoresLocal);
+
             Sentence compoundStatement = if_compound_statement();
+
+            ((FunctionDefinition)funcionActual).entornoValoresLocal = savedEnvValues2;            
 
             forStmnt.ForInit(forInitialization, forControl, forIteration, compoundStatement);
             cicloActual = cicloAnterior;
 
             entornoTipos = savedEnvTypes;
-            entornoValores = savedEnvValues;
+            ((FunctionDefinition)funcionActual).entornoValoresLocal = savedEnvValues;
             return forStmnt;
         }
 
@@ -955,6 +906,51 @@ namespace Syntax
 
         #endregion
 
+        #region return, continue, break statements
+
+        Sentence return_statement()
+        {
+            match("return");
+            Expr expresion = return_statementP();
+
+            ReturnStatement returnStmnt = new ReturnStatement(expresion);
+            //funcionActual = null;
+            return returnStmnt;
+        }
+
+        Expr return_statementP()
+        {
+            switch (currentToken.Tipo)
+            {
+                case TokenType.INCREMENT:
+                case TokenType.DECREMENT:
+                case TokenType.ID:
+                case TokenType.REAL_LITERAL:
+                case TokenType.INTEGER_LITERAL:
+                case TokenType.LEFT_PARENTHESIS:
+                    Expr expresion = expr();
+                    return expresion;
+
+                default:
+                    return null;
+            }
+            //null
+        }
+
+        Sentence break_statement()
+        {
+            match("break");
+            return new BreakStatement();
+        }
+
+        Sentence continue_statement()
+        {
+            match("continue");
+            return new ContinueStatement();
+        }
+
+        #endregion
+        
         #endregion
 
         #endregion

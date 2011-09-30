@@ -25,7 +25,7 @@ namespace Environment
             if (!tablaSimbolos.ContainsKey(key))
                 tablaSimbolos.Add(key, tipo);
             else
-                throw new Exception("La variable \"" + key + "\" ya fue declarada.");
+                throw new Exception("La variable \"" + key + "\" ya fue declarada. EnvT.");
         }
 
         public Tipo get(string key)
@@ -36,7 +36,7 @@ namespace Environment
                     return e.tablaSimbolos[key];
             }
 
-            throw new Exception("La variable " + key + " no existe.");
+            throw new Exception("La variable " + key + " no existe. EnvT.");
         }
     }
 
@@ -46,7 +46,7 @@ namespace Environment
         private int id;
         public Dictionary<string, Valor> tablaValores;
         public static Stack<EnvValues> pila;
-        protected EnvValues previo;
+        public EnvValues previo;
 
         public EnvValues(EnvValues entorno)
         {            
@@ -66,6 +66,8 @@ namespace Environment
                     return;
                 }
             }*/
+            if (tablaValores.ContainsKey(key))
+                throw new Exception("Ya existe la variable \"" + key + "\". EnvV.");
             tablaValores.Add(key, valor);
         }
 
@@ -81,7 +83,7 @@ namespace Environment
                 }
             }
 
-            throw new Exception("No existe variable " + key + ".");
+            throw new Exception("No existe variable " + key + ". EnvV.");
         }
 
         public Valor get(string key)
@@ -92,7 +94,7 @@ namespace Environment
                     return e.tablaValores[key];
             }
 
-            throw new Exception("La variable " + key + " no existe.");
+            throw new Exception("La variable " + key + " no existe. EnvV.");
         }
     }
 }
